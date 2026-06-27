@@ -643,9 +643,35 @@ function clearAll(){
   scheduleSave();
 }
 
+// ---------------- EXCEL-LIKE KEYBOARD BEHAVIOR ----------------
+function setupExcelLikeInputs(){
+  const fields = ["qty","p1","p2","p3"];
+  getRows().forEach((tr, rowIdx)=>{
+    fields.forEach(f=>{
+      const el = tr.querySelector(`[data-f="${f}"]`);
+      if(!el) return;
+      // Επιλογή όλου του περιεχομένου στο focus (σαν Excel) ώστε η πληκτρολόγηση να αντικαθιστά αμέσως
+      el.addEventListener("focus", ()=> el.select());
+      // Enter -> μετακίνηση στο ίδιο πεδίο της επόμενης γραμμής (σαν Excel)
+      el.addEventListener("keydown", (e)=>{
+        if(e.key === "Enter"){
+          e.preventDefault();
+          const rows = getRows();
+          const next = rows[rowIdx+1];
+          if(next){
+            const nextEl = next.querySelector(`[data-f="${f}"]`);
+            if(nextEl){ nextEl.focus(); }
+          }
+        }
+      });
+    });
+  });
+}
+
 async function initApp(){
   await loadProducts();
   getRows().forEach(attachAutocomplete);
+  setupExcelLikeInputs();
   await loadFromSupabase();
   if(!document.getElementById("f_orderno").value){
     await generateOrderNumber();
