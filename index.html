@@ -55,6 +55,7 @@
   tbody tr:nth-child(even){background:var(--grey);}
   td.desc input, td.unit input, td.notes input, td.code input{width:100%;border:none;padding:6px 4px;font-size:13px;font-family:inherit;background:transparent;}
   td input[type=number]{width:100%;border:none;padding:6px 4px;font-size:13px;text-align:center;font-family:inherit;background:transparent;}
+  td.price input, td.qty-cell input{width:100%;border:none;padding:6px 4px;font-size:13px;text-align:center;font-family:inherit;background:transparent;}
   td input:focus, td select:focus{outline:2px solid var(--navy-light);background:#fff;}
   td select{width:100%;border:none;padding:6px 2px;font-size:12px;font-family:inherit;background:transparent;text-align:center;}
   td.idx{font-weight:600;color:#777;background:transparent;}
@@ -98,7 +99,7 @@
     .toolbar,#loginScreen{display:none;}
     .sheet{box-shadow:none;border-radius:0;}
     td.notes,th.notes-col{display:none;}
-    @page{size:A3 landscape;margin:8mm;}
+    /* Το μέγεθος σελίδας (A4/A3) ορίζεται δυναμικά από JS πριν την εκτύπωση */
   }
 </style>
 </head>
@@ -117,7 +118,7 @@
 <!-- ============ APP ============ -->
 <div id="appRoot">
   <div class="toolbar">
-    <button class="btn-primary" onclick="window.print()">🖨️ Εκτύπωση</button>
+    <button class="btn-primary" onclick="printSmart()">🖨️ Εκτύπωση</button>
     <button class="btn-danger" onclick="clearAll()">🗑️ Νέα Παραγγελία</button>
     <button class="btn-secondary" id="adminBtn" style="display:none;" onclick="openAdmin()">⚙️ Διαχείριση</button>
     <div class="who"><span class="dot"></span><span id="whoLabel"></span><span id="syncStatus" style="color:#999;"></span></div>
@@ -132,7 +133,7 @@
     <div class="info-grid">
       <div class="info-field"><label>ΗΜΕΡΟΜΗΝΙΑ</label><input id="f_date" type="date"></div>
       <div class="info-field"><label>ΤΜΗΜΑ</label><input id="f_dept" type="text"></div>
-      <div class="info-field"><label>ΑΡ. ΠΑΡΑΓΓΕΛΙΑΣ</label><input id="f_orderno" type="text"></div>
+      <div class="info-field"><label>ΑΡ. ΠΑΡΑΓΓΕΛΙΑΣ</label><input id="f_orderno" type="text" readonly style="background:#eee;color:#555;"></div>
       <div class="info-field"><label>ΗΜ/ΝΙΑ ΠΑΡΑΛΑΒΗΣ</label><input id="f_receipt" type="date"></div>
     </div>
 
@@ -219,6 +220,15 @@
           </select>
           <button class="btn-primary" onclick="saveProduct()">Αποθήκευση</button>
         </div>
+
+        <div style="background:var(--surface,#f7f9fc); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:16px;">
+          <p style="font-size:13px;font-weight:700;color:var(--navy);margin:0 0 6px;">📥 Μαζική εισαγωγή πολλών προϊόντων (CSV)</p>
+          <p style="font-size:11px;color:#666;margin:0 0 8px;">Το αρχείο CSV πρέπει να έχει επικεφαλίδες: <code>code,description,unit,vat</code> (το vat ως δεκαδικό, π.χ. 0.13 για 13%, ή κενό)</p>
+          <input type="file" id="adm_csv_file" accept=".csv" style="margin-bottom:8px;">
+          <button class="btn-primary" onclick="handleBulkUpload()">Εισαγωγή CSV</button>
+          <span id="bulkUploadStatus" style="font-size:12px;color:#555;margin-left:10px;"></span>
+        </div>
+
         <input id="adm_search" placeholder="Αναζήτηση κωδικού/περιγραφής..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:8px;" oninput="renderAdminProductList()">
         <div id="adm_product_list" style="max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:4px;"></div>
       </div>
@@ -310,12 +320,12 @@ function buildRows(){
     html += `<tr data-row="${i}">
       <td class="idx">${i}</td>
       <td class="code" style="position:relative;"><input type="text" data-f="code" autocomplete="off"><div class="autocomplete-box" data-box="code" style="display:none;"></div></td>
-      <td class="desc" style="position:relative;"><input type="text" data-f="desc" autocomplete="off" placeholder="κωδικός ή περιγραφή..."><div class="autocomplete-box" data-box="desc" style="display:none;"></div></td>
+      <td class="desc" style="position:relative;"><input type="text" data-f="desc" autocomplete="off"><div class="autocomplete-box" data-box="desc" style="display:none;"></div></td>
       <td class="unit auto" data-f="unit"></td>
-      <td><input type="number" step="0.01" data-f="qty"></td>
-      <td class="price" data-f="p1"><input type="number" step="0.01" data-f="p1"></td>
-      <td class="price" data-f="p2"><input type="number" step="0.01" data-f="p2"></td>
-      <td class="price" data-f="p3"><input type="number" step="0.01" data-f="p3"></td>
+      <td class="qty-cell"><input type="text" inputmode="decimal" data-f="qty"></td>
+      <td class="price" data-f="p1"><input type="text" inputmode="decimal" data-f="p1"></td>
+      <td class="price" data-f="p2"><input type="text" inputmode="decimal" data-f="p2"></td>
+      <td class="price" data-f="p3"><input type="text" inputmode="decimal" data-f="p3"></td>
       <td class="auto" data-f="vat">—</td>
       <td class="readonly" data-f="net">0.00</td>
       <td class="readonly" data-f="gross">0.00</td>
@@ -327,6 +337,12 @@ function buildRows(){
 buildRows();
 
 function fmt(n){ return (isFinite(n)?n:0).toLocaleString("el-GR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function parseNum(v){
+  if(v===null || v===undefined) return NaN;
+  const s = String(v).trim().replace(",", ".");
+  if(s === "") return NaN;
+  return parseFloat(s);
+}
 function getRows(){ return Array.from(tbody.querySelectorAll("tr")); }
 
 // ---------------- PRODUCT AUTOCOMPLETE ----------------
@@ -363,6 +379,8 @@ function attachAutocomplete(tr){
     tr.querySelector('[data-f="vat"]').textContent = hasVat ? Math.round(p.vat*100)+"%" : "—";
     codeBox.style.display = "none";
     descBox.style.display = "none";
+    tr.querySelector('.code').style.outline = "none";
+    tr.querySelector('.desc').style.outline = "none";
     recalc(); scheduleSave();
   }
 
@@ -401,14 +419,7 @@ function attachAutocomplete(tr){
     descBox.style.display = "none";
     if(v.length < 2){ codeBox.style.display="none"; clearLookup(); return; }
     const exact = findByCode(v);
-    if(exact){
-      descInput.value = exact.description; codeBox.style.display="none";
-      const hasVat = (exact.vat!==null && exact.vat!==undefined);
-      tr.dataset.vat = hasVat ? exact.vat : "";
-      tr.querySelector('[data-f="vat"]').textContent = hasVat ? Math.round(exact.vat*100)+"%" : "—";
-      tr.querySelector('[data-f="unit"]').textContent = exact.unit||"";
-      recalc(); return;
-    }
+    if(exact){ applyProduct(exact); return; }
     clearLookup();
     showMatches(codeBox, v, search(v));
   });
@@ -416,13 +427,24 @@ function attachAutocomplete(tr){
   descInput.addEventListener("input", ()=>{
     const v = descInput.value.trim();
     codeBox.style.display = "none";
-    if(v.length < 2){ descBox.style.display="none"; return; }
+    if(v.length < 2){ descBox.style.display="none"; clearLookup(); updateUnresolvedStyle(); return; }
+    const exactDesc = productCache.find(p => (p.description||"").toLowerCase() === v.toLowerCase());
+    if(exactDesc){ applyProduct(exactDesc); return; }
     clearLookup();
     showMatches(descBox, v, search(v));
+    updateUnresolvedStyle();
   });
 
-  codeInput.addEventListener("blur", ()=> setTimeout(()=>{ codeBox.style.display="none"; }, 150));
-  descInput.addEventListener("blur", ()=> setTimeout(()=>{ descBox.style.display="none"; }, 150));
+  function updateUnresolvedStyle(){
+    const hasText = codeInput.value.trim().length>0 || descInput.value.trim().length>0;
+    const resolved = tr.dataset.vat !== "" && tr.dataset.vat !== undefined;
+    const warn = hasText && !resolved;
+    tr.querySelector('.code').style.outline = warn ? "2px solid #e6a700" : "none";
+    tr.querySelector('.desc').style.outline = warn ? "2px solid #e6a700" : "none";
+  }
+
+  codeInput.addEventListener("blur", ()=> setTimeout(()=>{ codeBox.style.display="none"; updateUnresolvedStyle(); }, 150));
+  descInput.addEventListener("blur", ()=> setTimeout(()=>{ descBox.style.display="none"; updateUnresolvedStyle(); }, 150));
 }
 
 // ---------------- CALCULATIONS ----------------
@@ -448,8 +470,8 @@ function recalc(){
     const netCell = tr.querySelector('[data-f="net"]');
     const grossCell = tr.querySelector('[data-f="gross"]');
     const vat = parseFloat(tr.dataset.vat);
-    const qty = parseFloat(qtyEl.value);
-    const prices = [p1El, p2El, p3El].map(el=>{ const v=parseFloat(el.value); return isNaN(v)?null:v; });
+    const qty = parseNum(qtyEl.value);
+    const prices = [p1El, p2El, p3El].map(el=>{ const v=parseNum(el.value); return isNaN(v)?null:v; });
 
     [p1El,p2El,p3El].forEach(el=>el.closest("td").classList.remove("cheapest"));
 
@@ -575,6 +597,35 @@ function subscribeRealtime(){
     .subscribe();
 }
 
+// ---------------- SMART PRINT (A4 αν αρκεί, αλλιώς A3) ----------------
+function printSmart(){
+  const filledRows = getRows().filter(tr=>{
+    const code = tr.querySelector('[data-f="code"]').value.trim();
+    const desc = tr.querySelector('[data-f="desc"]').value.trim();
+    return code.length>0 || desc.length>0;
+  }).length;
+
+  // Λίγα είδη -> χωράει άνετα σε Α4 landscape. Πολλά είδη -> χρειάζεται Α3 landscape.
+  const pageSize = filledRows <= 16 ? "A4 landscape" : "A3 landscape";
+
+  let styleEl = document.getElementById("dynamicPageSize");
+  if(!styleEl){
+    styleEl = document.createElement("style");
+    styleEl.id = "dynamicPageSize";
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `@page{ size:${pageSize}; margin:8mm; }`;
+
+  setTimeout(()=> window.print(), 50);
+}
+
+async function generateOrderNumber(){
+  const { data, error } = await sb.rpc("get_next_order_number");
+  if(!error && data){
+    document.getElementById("f_orderno").value = data;
+  }
+}
+
 function clearAll(){
   if(!confirm("Να ξεκινήσει νέα παραγγελία; Θα καθαρίσει τη φόρμα για ΟΛΟΥΣ.")) return;
   document.querySelectorAll("input[type=text],input[type=number],input[type=date]").forEach(el=>el.value="");
@@ -587,6 +638,7 @@ function clearAll(){
   document.getElementById("sup1").value="ΠΡΟΜΗΘΕΥΤΗΣ 1";
   document.getElementById("sup2").value="ΠΡΟΜΗΘΕΥΤΗΣ 2";
   document.getElementById("sup3").value="ΠΡΟΜΗΘΕΥΤΗΣ 3";
+  generateOrderNumber();
   recalc();
   scheduleSave();
 }
@@ -595,6 +647,10 @@ async function initApp(){
   await loadProducts();
   getRows().forEach(attachAutocomplete);
   await loadFromSupabase();
+  if(!document.getElementById("f_orderno").value){
+    await generateOrderNumber();
+    scheduleSave();
+  }
   subscribeRealtime();
   recalc();
 
@@ -620,6 +676,78 @@ function showAdminTab(tab){
   document.getElementById("adminStaffTab").style.display = tab==="staff" ? "block" : "none";
   document.getElementById("tabProductsBtn").style.background = tab==="products" ? "var(--light-blue)" : "";
   document.getElementById("tabStaffBtn").style.background = tab==="staff" ? "var(--light-blue)" : "";
+}
+
+// ---------------- BULK CSV IMPORT (admin) ----------------
+function parseCSV(text){
+  // Απλός, ανθεκτικός CSV parser με υποστήριξη quoted πεδίων
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else field += c;
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field=""; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length>1 || (r.length===1 && r[0]!==""));
+}
+
+async function handleBulkUpload(){
+  const fileInput = document.getElementById("adm_csv_file");
+  const statusEl = document.getElementById("bulkUploadStatus");
+  const file = fileInput.files[0];
+  if(!file){ statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο CSV."; return; }
+
+  statusEl.textContent = "Διάβασμα αρχείου...";
+  const text = await file.text();
+  const rows = parseCSV(text);
+  if(rows.length < 2){ statusEl.textContent = "Το αρχείο φαίνεται άδειο."; return; }
+
+  const header = rows[0].map(h=>h.trim().toLowerCase());
+  const idxCode = header.indexOf("code");
+  const idxDesc = header.indexOf("description");
+  const idxUnit = header.indexOf("unit");
+  const idxVat = header.indexOf("vat");
+  if(idxCode===-1 || idxDesc===-1){
+    statusEl.textContent = "Λάθος μορφή: λείπουν οι στήλες code/description.";
+    return;
+  }
+
+  const records = rows.slice(1)
+    .filter(r => r[idxCode] && r[idxCode].trim())
+    .map(r => ({
+      code: r[idxCode].trim(),
+      description: (r[idxDesc]||"").trim(),
+      unit: idxUnit>=0 ? (r[idxUnit]||"").trim() : null,
+      vat: idxVat>=0 && r[idxVat] && r[idxVat].trim()!=="" ? parseFloat(r[idxVat]) : null
+    }));
+
+  statusEl.textContent = `Αποστολή ${records.length} προϊόντων...`;
+  const chunkSize = 500;
+  let done = 0;
+  for(let i=0;i<records.length;i+=chunkSize){
+    const chunk = records.slice(i, i+chunkSize);
+    const { error } = await sb.from("products").upsert(chunk);
+    if(error){
+      statusEl.textContent = `Σφάλμα στο batch ${i}: ${error.message}`;
+      return;
+    }
+    done += chunk.length;
+    statusEl.textContent = `Καταχωρήθηκαν ${done} / ${records.length}...`;
+  }
+  statusEl.textContent = `✅ Ολοκληρώθηκε! Καταχωρήθηκαν ${done} προϊόντα.`;
+  fileInput.value = "";
+  await loadProducts();
+  renderAdminProductList();
 }
 
 async function saveProduct(){
