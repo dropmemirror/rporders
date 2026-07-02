@@ -1123,6 +1123,11 @@ async function finalizeOrder(){
       }).eq("id", histIdToSave);
       if(error){ alert("Σφάλμα αποθήκευσης: " + error.message); return; }
     } else {
+      // Πρώτα διαγράφουμε τυχόν υπάρχουσα εγγραφή με τον ίδιο αριθμό παραγγελίας
+      // ώστε να κρατάμε πάντα μόνο την τελευταία έκδοση
+      if(data.orderno){
+        try{ await sb.from("order_history").delete().eq("order_number", data.orderno); }catch(e){}
+      }
       const { error } = await sb.from("order_history").insert({
         order_number: data.orderno || null,
         order_date: data.date || null,
