@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<title>Έντυπο Παραγγελίας Τροφίμων &amp; Ποτών</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy-light:#2E4D7B; --light-blue:#D9E2F3;
+    --gold:#FFF2CC; --soft-green:#C6EFCE; --grey:#F2F2F2;
+    --border:#B0B0B0; --text:#1a1a1a;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:"Calibri","Segoe UI",Arial,sans-serif;background:#eef1f6;margin:0;padding:24px;color:var(--text);}
+
+  /* ---- LOGIN SCREEN ---- */
+  #loginScreen{max-width:380px;margin:80px auto;background:#fff;border-radius:8px;box-shadow:0 2px 14px rgba(0,0,0,.12);padding:32px;text-align:center;}
+  #loginScreen h1{color:var(--navy);font-size:18px;margin:0 0 4px;}
+  #loginScreen p{color:#666;font-size:13px;margin:0 0 24px;}
+  #loginScreen select, #loginScreen input{
+    width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);border-radius:5px;font-size:14px;font-family:inherit;
+  }
+  #loginScreen button{width:100%;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-weight:700;font-size:14px;cursor:pointer;}
+  #loginScreen button:hover{background:var(--navy-light);}
+  #loginError{color:#b42318;font-size:12px;margin-top:8px;min-height:16px;}
+
+  #appRoot{display:none;}
+
+  .toolbar{max-width:1400px;margin:0 auto 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  button{font-family:inherit;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px;border:none;cursor:pointer;}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy);}
+  .btn-danger{background:#fff;color:#b42318;border:1.5px solid #b42318;}
+  .who{margin-left:auto;font-size:13px;color:#555;display:flex;align-items:center;gap:10px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#2e9e4f;display:inline-block;}
+
+  .sheet{max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.12);border-radius:4px;overflow:hidden;}
+  .title-bar{background:var(--navy);color:#fff;text-align:center;padding:14px 10px 6px;}
+  .title-bar h1{margin:0;font-size:20px;}
+  .title-bar h2{margin:4px 0 12px;font-size:14px;font-weight:600;opacity:.95;}
+
+  .info-grid{display:grid;grid-template-columns:repeat(4,1fr);padding:14px 16px;border-bottom:1px solid var(--border);}
+  .info-field{display:flex;flex-direction:column;gap:3px;padding:4px 8px;}
+  .info-field label{font-size:11px;font-weight:700;color:var(--navy);}
+  .info-field input{border:1px solid var(--border);background:var(--light-blue);padding:6px 8px;border-radius:3px;font-size:13px;font-family:inherit;}
+
+  .suppliers-row{display:grid;grid-template-columns:1fr repeat(6,1fr);gap:10px;padding:10px 16px;background:#fafafa;border-bottom:1px solid var(--border);align-items:center;}
+  .suppliers-row .label{font-size:12px;font-weight:700;color:var(--navy);text-align:right;}
+  .suppliers-row input{background:var(--gold);border:1px solid var(--border);padding:5px 4px;border-radius:3px;font-weight:700;font-size:11px;text-align:center;font-family:inherit;color:var(--navy);}
+
+  .table-wrap{overflow-x:auto;padding:0 16px 16px;position:relative;}
+  table{border-collapse:collapse;width:100%;min-width:1250px;}
+  thead th{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:8px 4px;border:1px solid #2c4f80;text-align:center;white-space:pre-line;}
+  tbody td{border:1px solid var(--border);padding:2px;font-size:13px;text-align:center;position:relative;}
+  tbody tr:nth-child(even){background:var(--grey);}
+  td.desc input, td.unit input, td.notes input, td.code input{width:100%;border:none;padding:6px 4px;font-size:13px;font-family:inherit;background:transparent;}
+  td input[type=number]{width:100%;border:none;padding:6px 4px;font-size:13px;text-align:center;font-family:inherit;background:transparent;}
+  td.price input, td.qty-cell input{width:100%;border:none;padding:6px 4px;font-size:13px;text-align:center;font-family:inherit;background:transparent;}
+  td input:focus, td select:focus{outline:2px solid var(--navy-light);background:#fff;}
+  td select{width:100%;border:none;padding:6px 2px;font-size:12px;font-family:inherit;background:transparent;text-align:center;}
+  td.idx{font-weight:600;color:#777;background:transparent;}
+  td.price.cheapest{background:var(--soft-green) !important;font-weight:700;}
+  td.price.deselected{background:#fff !important;font-weight:400;opacity:0.5;}
+  td.price.cheapest input, td.price.deselected input{cursor:pointer;}
+  td.readonly{background:#fbfbfb;font-weight:600;color:var(--navy);}
+  td.auto{background:#fbfbfb;color:#444;}
+
+  .autocomplete-box{
+    position:absolute;top:100%;left:0;z-index:50;background:#fff;border:1px solid var(--border);
+    border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.18);max-height:220px;overflow-y:auto;min-width:280px;text-align:left;
+  }
+  .autocomplete-box div{padding:7px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f0f0;}
+  .autocomplete-box div:hover{background:var(--light-blue);}
+  .autocomplete-box .ac-code{font-weight:700;color:var(--navy);}
+
+  .totals-section{padding:6px 16px 4px;}
+  .totals-title{font-size:12px;font-weight:700;font-style:italic;color:var(--navy);margin:14px 0 6px;}
+  table.totals{border-collapse:collapse;width:100%;}
+  table.totals th{background:var(--navy);color:#fff;font-size:12px;padding:8px;border:1px solid #2c4f80;}
+  table.totals td{border:1px solid var(--border);padding:8px;text-align:center;font-size:13px;}
+  table.totals td.label{text-align:right;font-weight:700;background:#fff;border:none;padding-right:14px;}
+  table.totals td.val{background:var(--light-blue);font-weight:600;}
+  table.totals td.val.cheapest{background:var(--soft-green);font-weight:800;}
+  table.totals tr.best td.val,table.totals tr.best td.label{background:var(--navy);color:#fff;font-weight:800;font-size:14px;}
+
+  .grand-totals{padding:6px 16px 16px;}
+  .grand-row{display:grid;grid-template-columns:1fr 220px;border:1px solid var(--border);border-top:none;}
+  .grand-row:first-child{border-top:1px solid var(--border);}
+  .grand-row .gl{padding:9px 14px;text-align:right;font-weight:700;font-size:13px;color:var(--navy);}
+  .grand-row .gv{padding:9px 14px;text-align:center;font-weight:700;background:var(--light-blue);font-size:13px;}
+  .grand-row.final .gl,.grand-row.final .gv{background:var(--navy);color:#fff;font-size:15px;}
+
+  .signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;padding:32px 24px 24px;}
+  .sig-box{text-align:center;}
+  .sig-box .role{font-weight:700;color:var(--navy);font-size:13px;margin-bottom:40px;}
+  .sig-line{border-top:1px solid #555;margin-bottom:6px;}
+  .sig-box .date{font-size:11px;color:#555;font-style:italic;}
+
+  @media print{
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    body{background:#fff;padding:0;}
+    .toolbar,#loginScreen,#debugPanel{display:none;}
+    .sheet{box-shadow:none;border-radius:0;}
+    .table-wrap{overflow:visible !important;}
+    table{table-layout:fixed !important;width:100% !important;min-width:0 !important;}
+    td.notes,th.notes-col{display:none !important;}
+    thead th:nth-child(1), tbody td:nth-child(1){width:1.2%;}
+    thead th:nth-child(2), tbody td:nth-child(2){width:1.5%;}
+    thead th:nth-child(3), tbody td:nth-child(3){width:85.1%;}
+    thead th:nth-child(4), tbody td:nth-child(4){width:0.9%;}
+    thead th:nth-child(5), tbody td:nth-child(5){width:1.2%;}
+    thead th:nth-child(6), tbody td:nth-child(6){width:1.7%;}
+    thead th:nth-child(7), tbody td:nth-child(7){width:1.7%;}
+    thead th:nth-child(8), tbody td:nth-child(8){width:1.7%;}
+    thead th:nth-child(9), tbody td:nth-child(9){width:0.7%;}
+    thead th:nth-child(10), tbody td:nth-child(10){width:1.9%;}
+    thead th:nth-child(11), tbody td:nth-child(11){width:2.4%;}
+    table.totals{table-layout:fixed !important;width:100% !important;}
+    table.totals th:nth-child(1), table.totals td:nth-child(1){width:30% !important;}
+    table.totals th:nth-child(2), table.totals td:nth-child(2),
+    table.totals th:nth-child(3), table.totals td:nth-child(3),
+    table.totals th:nth-child(4), table.totals td:nth-child(4),
+    table.totals th:nth-child(5), table.totals td:nth-child(5){width:17.5% !important;}
+    tbody td input, tbody td.desc input, tbody td.code input, tbody td.notes input{
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    tr.print-hide{display:none;}
+    /* Συμπύκνωση όλων των τμημάτων για εκτύπωση χωρίς περιττό χώρο */
+    .title-bar{padding:6px 10px 4px !important;}
+    .title-bar h1{font-size:15px !important;}
+    .title-bar h2{font-size:11px !important;margin:2px 0 6px !important;}
+    .info-grid{padding:6px 10px !important;}
+    .info-field input, .info-field select{padding:3px 6px !important;font-size:11px !important;}
+    .info-field label{font-size:9px !important;}
+    .suppliers-row{padding:5px 10px !important;}
+    .suppliers-row input{padding:3px 6px !important;font-size:11px !important;}
+    thead th{padding:3px 2px !important;font-size:7.5px !important;}
+    tbody td{padding:0px !important;font-size:9px !important;}
+    tbody td input{padding:1px 2px !important;font-size:9px !important;}
+    .totals-title{margin:6px 0 3px !important;font-size:9px !important;}
+    table.totals th, table.totals td{padding:3px !important;font-size:10px !important;}
+    .grand-row .gl, .grand-row .gv{padding:4px 10px !important;font-size:11px !important;}
+    .grand-row.final .gl, .grand-row.final .gv{font-size:12px !important;}
+    .signatures{padding:10px 16px 8px !important;gap:14px !important;}
+    .sig-box .role{margin-bottom:16px !important;font-size:11px !important;}
+    .sig-box .date{display:none !important;}
+    table, .totals-section, .grand-totals, .signatures{page-break-inside:avoid;}
+    /* Το μέγεθος σελίδας (A4/A3) ορίζεται δυναμικά από JS πριν την εκτύπωση */
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen">
+  <h1>RODOS PALACE HOTEL</h1>
+  <p>Έντυπο Παραγγελίας — Σύνδεση</p>
+  <select id="loginName"><option value="">Επίλεξε το όνομά σου...</option></select>
+  <input type="password" id="loginPin" placeholder="PIN" inputmode="numeric" maxlength="6" onkeydown="if(event.key==='Enter') attemptLogin()">
+  <button onclick="attemptLogin()">Σύνδεση</button>
+  <div id="loginError"></div>
+</div>
+
+<!-- ============ APP ============ -->
+
+<!-- ===== ΛΙΣΤΑ ΕΝΕΡΓΩΝ ΠΑΡΑΓΓΕΛΙΩΝ ===== -->
+<div id="pickerScreen" style="display:none; max-width:700px; margin:50px auto;">
+  <div style="background:#fff; border-radius:8px; box-shadow:0 2px 14px rgba(0,0,0,.12); padding:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <h1 style="color:var(--navy); font-size:17px; margin:0;">RODOS PALACE HOTEL</h1>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span id="pickerWho" style="font-size:13px; color:#555;"></span>
+        <button class="btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="logout()">🚪 Αποσύνδεση</button>
+      </div>
+    </div>
+    <p style="color:#666; font-size:12px; margin:0 0 16px;">Επίλεξε ενεργή παραγγελία ή ξεκίνα νέα</p>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="btn-primary" onclick="startNewOrder()" style="flex:1;">➕ Νέα Παραγγελία</button>
+      <button class="btn-secondary" onclick="loadPickerOrders()">🔄</button>
+      <button class="btn-secondary" onclick="openHistory()">📋 Ιστορικό</button>
+    </div>
+    <div id="pickerList" style="border:1px solid var(--border); border-radius:6px; min-height:60px;"></div>
+  </div>
+</div>
+
+<div id="appRoot">
+  <div class="toolbar">
+    <button class="btn-secondary" onclick="backToList()">← Λίστα</button>
+    <button class="btn-primary" onclick="printSmart()">🖨️ Εκτύπωση</button>
+    <button id="undoBtn" class="btn-secondary" onclick="undoLastChange()" style="opacity:0.4;" disabled>↩ Αναίρεση</button>
+    <button class="btn-secondary" onclick="exportToExcel()">📊 Εξαγωγή σε Excel</button>
+    <button class="btn-primary" id="finalizeBtn" style="background:#1a7f37;" onclick="finalizeOrder()">✅ Καταχώρηση Παραγγελίας</button>
+    <button class="btn-danger" onclick="clearAll()">🗑️ Νέα Παραγγελία</button>
+    <button class="btn-secondary" onclick="cancelOrder()">❌ Ακύρωση Παραγγελίας</button>
+    <button class="btn-secondary" id="adminBtn" style="display:none;" onclick="openAdmin()">⚙️ Διαχείριση</button>
+    <button class="btn-secondary" onclick="logout()">🚪 Αποσύνδεση</button>
+    <button class="btn-secondary" onclick="toggleDebug()">🐛 Debug</button>
+    <button class="btn-secondary" onclick="openHistory()">📋 Ιστορικό</button>
+    <div class="who"><span class="dot"></span><span id="whoLabel"></span><span id="syncStatus" style="color:#999;"></span></div>
+  </div>
+
+  <div id="historyEditBanner" style="display:none; max-width:1400px; margin:0 auto 12px; background:#1a4a8a; color:#fff; padding:10px 16px; border-radius:6px; font-size:13px; font-weight:700; align-items:center; justify-content:center; gap:14px;">
+    <span>📋 Επεξεργασία παραγγελίας από το Ιστορικό — οι αλλαγές αποθηκεύονται αυτόματα μόνο εδώ.</span>
+    <button onclick="exitHistoryEdit()" style="background:#fff; color:#1a4a8a; border:none; padding:6px 14px; border-radius:5px; font-weight:700; font-size:12px; cursor:pointer;">✖ Επιστροφή στην κοινή παραγγελία</button>
+  </div>
+
+  <div id="lockedBanner" style="display:none; max-width:1400px; margin:0 auto 12px; background:#1a7f37; color:#fff; padding:10px 16px; border-radius:6px; font-size:13px; font-weight:700; text-align:center; display:flex; align-items:center; justify-content:center; gap:14px;">
+    <span>✅ Η παραγγελία αυτή έχει καταχωρηθεί οριστικά — η φόρμα είναι κλειδωμένη.</span>
+    <button onclick="unlockOrder()" style="background:#fff; color:#1a7f37; border:none; padding:6px 14px; border-radius:5px; font-weight:700; font-size:12px; cursor:pointer;">🔓 Ξεκλείδωμα για επεξεργασία</button>
+  </div>
+
+  <div class="sheet">
+    <div class="title-bar">
+      <h1>RODOS PALACE HOTEL</h1>
+      <h2>ΕΝΤΥΠΟ ΠΑΡΑΓΓΕΛΙΑΣ ΤΡΟΦΙΜΩΝ &amp; ΠΟΤΩΝ – ΣΥΓΚΡΙΣΗ ΠΡΟΜΗΘΕΥΤΩΝ</h2>
+    </div>
+
+    <div class="info-grid" style="grid-template-columns:repeat(5,1fr);">
+      <div class="info-field"><label>ΗΜΕΡΟΜΗΝΙΑ</label><input id="f_date" type="date"></div>
+      <div class="info-field"><label>ΤΜΗΜΑ</label>
+        <select id="f_dept" style="border:1px solid var(--border);background:var(--light-blue);padding:6px 8px;border-radius:3px;font-size:13px;font-family:inherit;">
+          <option value="">— Επιλέξτε τμήμα —</option>
+          <option value="ΚΕΝΤΡΙΚΗ ΚΟΥΖΙΝΑ">ΚΕΝΤΡΙΚΗ ΚΟΥΖΙΝΑ</option>
+          <option value="ΖΑΧΑΡΟΠΛΑΣΤΕΙΟ">ΖΑΧΑΡΟΠΛΑΣΤΕΙΟ</option>
+          <option value="ΕΣΤΙΑΤΟΡΙΑ">ΕΣΤΙΑΤΟΡΙΑ</option>
+          <option value="ΜΠΑΡΣ">ΜΠΑΡΣ</option>
+          <option value="ΡΕΣΕΨΙΟΝ">ΡΕΣΕΨΙΟΝ</option>
+          <option value="ΣΥΝΤΗΡΗΣΗ">ΣΥΝΤΗΡΗΣΗ</option>
+          <option value="HOUSEKEEPING">HOUSEKEEPING</option>
+          <option value="ΔΙΟΙΚΗΤΙΚΕΣ ΥΠΗΡΕΣΙΕΣ">ΔΙΟΙΚΗΤΙΚΕΣ ΥΠΗΡΕΣΙΕΣ</option>
+          <option value="ΚΕΝΤΡΙΚΗ ΑΠΟΘΗΚΗ">ΚΕΝΤΡΙΚΗ ΑΠΟΘΗΚΗ</option>
+        </select>
+      </div>
+      <div class="info-field"><label>ΚΑΤΗΓΟΡΙΑ</label>
+        <select id="f_category" style="border:1px solid var(--border);background:var(--light-blue);padding:6px 8px;border-radius:3px;font-size:13px;font-family:inherit;">
+          <option value="">— Επιλέξτε κατηγορία —</option>
+          <option value="ΤΡΟΦΙΜΑ">ΤΡΟΦΙΜΑ</option>
+          <option value="ΑΛΚΟΟΛΟΥΧΑ ΠΟΤΑ">ΑΛΚΟΟΛΟΥΧΑ ΠΟΤΑ</option>
+          <option value="ΚΡΑΣΙΑ - ΜΠΥΡΕΣ">ΚΡΑΣΙΑ - ΜΠΥΡΕΣ</option>
+          <option value="ΑΝΑΛΩΣΙΜΑ">ΑΝΑΛΩΣΙΜΑ</option>
+          <option value="AMENITIES">AMENITIES</option>
+          <option value="ΑΝΑΨΥΚΤΙΚΑ-ΝΕΡΑ-ΧΥΜΟΙ">ΑΝΑΨΥΚΤΙΚΑ-ΝΕΡΑ-ΧΥΜΟΙ</option>
+          <option value="ΧΑΡΤΙΚΑ ΚΑΙ ΚΑΘΑΡΙΣΤΙΚΑ">ΧΑΡΤΙΚΑ ΚΑΙ ΚΑΘΑΡΙΣΤΙΚΑ</option>
+        </select>
+      </div>
+      <div class="info-field"><label>ΑΡ. ΠΑΡΑΓΓΕΛΙΑΣ</label><input id="f_orderno" type="text" readonly style="background:#eee;color:#555;"></div>
+      <div class="info-field"><label>ΗΜ/ΝΙΑ ΠΑΡΑΛΑΒΗΣ</label><input id="f_receipt" type="date"></div>
+    </div>
+
+    <div class="suppliers-row" style="grid-template-columns:auto repeat(6,1fr);">
+      <div class="label">ΠΡΟΜΗΘΕΥΤΕΣ:</div>
+      <input id="sup1" value="ΠΡΟΜΗΘΕΥΤΗΣ 1">
+      <input id="sup2" value="ΠΡΟΜΗΘΕΥΤΗΣ 2">
+      <input id="sup3" value="ΠΡΟΜΗΘΕΥΤΗΣ 3">
+      <input id="sup4" value="ΠΡΟΜΗΘΕΥΤΗΣ 4">
+      <input id="sup5" value="ΠΡΟΜΗΘΕΥΤΗΣ 5">
+    </div>
+
+    <div class="table-wrap">
+      <table id="itemsTable">
+        <thead>
+          <tr>
+            <th style="width:32px;">Α/Α</th>
+            <th style="width:90px;">ΚΩΔΙΚΟΣ</th>
+            <th style="min-width:250px;">ΠΕΡΙΓΡΑΦΗ</th>
+            <th style="width:60px;">Μ.Μ.</th>
+            <th style="width:70px;">ΠΟΣΟΤΗΤΑ</th>
+            <th style="width:52px;" id="th_sup1">ΠΡΟΜ.1</th>
+            <th style="width:52px;" id="th_sup2">ΠΡΟΜ.2</th>
+            <th style="width:52px;" id="th_sup3">ΠΡΟΜ.3</th>
+            <th style="width:52px;" id="th_sup4">ΠΡΟΜ.4</th>
+            <th style="width:52px;" id="th_sup5">ΠΡΟΜ.5</th>
+            <th style="width:60px;">ΦΠΑ %</th>
+            <th style="width:95px;">ΚΑΘΑΡΗ&#10;ΑΞΙΑ €</th>
+            <th style="width:100px;">ΣΥΝΟΛΟ ΜΕ&#10;ΦΠΑ €</th>
+            <th class="notes-col" style="min-width:150px;">ΠΑΡΑΤΗΡΗΣΕΙΣ</th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="totals-section">
+      <div class="totals-title">ΣΥΝΟΛΑ ΑΝΑ ΠΡΟΜΗΘΕΥΤΗ (ΜΟΝΟ ΓΙΑ ΤΑ ΕΙΔΗ ΣΤΑ ΟΠΟΙΑ ΕΙΝΑΙ ΦΘΗΝΟΤΕΡΟΙ) &amp; ΦΘΗΝΟΤΕΡΟΣ ΣΥΝΔΥΑΣΜΟΣ</div>
+      <table class="totals">
+        <thead><tr><th style="width:22%;"></th><th id="tot_sup1"></th><th id="tot_sup2"></th><th id="tot_sup3"></th><th id="tot_sup4"></th><th id="tot_sup5"></th><th>ΦΘΗΝΟΤΕΡΟΣ ΣΥΝΔΥΑΣΜΟΣ</th></tr></thead>
+        <tbody>
+          <tr><td class="label">ΚΑΘΑΡΗ ΑΞΙΑ</td><td class="val" id="net1">0.00</td><td class="val" id="net2">0.00</td><td class="val" id="net3">0.00</td><td class="val" id="net4">0.00</td><td class="val" id="net5">0.00</td><td class="val" id="netCombo">0.00</td></tr>
+          <tr><td class="label">ΣΥΝΟΛΟ ΦΠΑ</td><td class="val" id="vat1">0.00</td><td class="val" id="vat2">0.00</td><td class="val" id="vat3">0.00</td><td class="val" id="vat4">0.00</td><td class="val" id="vat5">0.00</td><td class="val" id="vatCombo">0.00</td></tr>
+          <tr><td class="label">ΣΥΝΟΛΟ ΜΕ ΦΠΑ</td><td class="val" id="gross1">0.00</td><td class="val" id="gross2">0.00</td><td class="val" id="gross3">0.00</td><td class="val" id="gross4">0.00</td><td class="val" id="gross5">0.00</td><td class="val" id="grossCombo">0.00</td></tr>
+          <tr class="best"><td class="label">ΟΙΚΟΝΟΜΙΚΟΤΕΡΟΣ ΠΡΟΜΗΘΕΥΤΗΣ</td><td class="val" colspan="5" id="bestSupplier">—</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grand-totals">
+      <div class="grand-row"><div class="gl">ΣΥΝΟΛΟ ΚΑΘΑΡΗΣ ΑΞΙΑΣ</div><div class="gv" id="grandNet">0.00 €</div></div>
+      <div class="grand-row"><div class="gl">ΣΥΝΟΛΟ ΦΠΑ</div><div class="gv" id="grandVat">0.00 €</div></div>
+      <div class="grand-row final"><div class="gl">ΓΕΝΙΚΟ ΣΥΝΟΛΟ ΜΕ ΦΠΑ</div><div class="gv" id="grandTotal">0.00 €</div></div>
+    </div>
+
+    <div class="signatures">
+      <div class="sig-box"><div class="role">ΠΑΡΑΓΓΕΛΩΝ</div><div class="sig-line"></div><div class="date">Ημερομηνία: ____________</div></div>
+      <div class="sig-box"><div class="role">ΕΛΕΓΚΤΗΣ</div><div class="sig-line"></div><div class="date">Ημερομηνία: ____________</div></div>
+      <div class="sig-box"><div class="role">ΕΓΚΡΙΝΩΝ</div><div class="sig-line"></div><div class="date">Ημερομηνία: ____________</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN PANEL ============ -->
+  <div id="debugPanel" style="display:none; position:fixed; bottom:10px; right:10px; width:420px; max-height:50vh; overflow-y:auto; background:#111; color:#0f0; font-family:monospace; font-size:11px; padding:10px; border-radius:6px; z-index:300; white-space:pre-wrap;"></div>
+
+  <div id="historyOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:center; justify-content:center;">
+    <div id="histPreviewBox" style="display:none; position:fixed; z-index:400; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.2); padding:14px; width:540px; max-height:420px; overflow-y:auto; pointer-events:none; font-size:11px;"></div>
+    <div style="background:#fff; border-radius:10px; width:92%; max-width:900px; max-height:85vh; overflow-y:auto; padding:20px 24px; position:relative;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 style="margin:0; color:var(--navy); font-size:17px;">📋 Ιστορικό Παραγγελιών</h2>
+        <button class="btn-secondary" onclick="closeHistory()">Κλείσιμο ✕</button>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <button id="hf_all" class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="setHistFilter('all')">Όλες</button>
+        <button id="hf_pending" class="btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="setHistFilter('pending')">🔴 Προς Επεξεργασία</button>
+        <button id="hf_approval" class="btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="setHistFilter('approval')">🟡 Προς Έγκριση</button>
+        <button id="hf_done" class="btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="setHistFilter('done')">🟢 Εκτελεσμένη</button>
+      </div>
+      <input id="hist_search" placeholder="Αναζήτηση κατά αριθμό παραγγελίας ή τμήμα..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:10px;" oninput="renderHistoryList()">
+      <div id="hist_list" style="border:1px solid var(--border); border-radius:4px;"></div>
+    </div>
+  </div>
+
+  <div id="adminOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:10px; width:90%; max-width:760px; max-height:85vh; overflow-y:auto; padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 style="margin:0; color:var(--navy); font-size:17px;">⚙️ Διαχείριση</h2>
+        <button class="btn-secondary" onclick="closeAdmin()">Κλείσιμο ✕</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border);">
+        <button id="tabProductsBtn" class="btn-secondary" style="border-radius:6px 6px 0 0;" onclick="showAdminTab('products')">Προϊόντα</button>
+        <button id="tabStaffBtn" class="btn-secondary" style="border-radius:6px 6px 0 0;" onclick="showAdminTab('staff')">Άτομα &amp; PIN</button>
+      </div>
+
+      <div id="adminProductsTab">
+        <p style="font-size:13px;font-weight:700;color:var(--navy);margin:0 0 8px;">Προσθήκη / Επεξεργασία προϊόντος</p>
+        <div style="display:grid; grid-template-columns:1fr 2fr 1fr 1fr auto; gap:8px; margin-bottom:14px;">
+          <input id="adm_code" placeholder="Κωδικός" style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+          <input id="adm_desc" placeholder="Περιγραφή" style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+          <input id="adm_unit" placeholder="Μ.Μ." style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+          <select id="adm_vat" style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+            <option value="">ΦΠΑ —</option>
+            <option value="0">0%</option>
+            <option value="0.06">6%</option>
+            <option value="0.13">13%</option>
+            <option value="0.24">24%</option>
+          </select>
+          <button class="btn-primary" onclick="saveProduct()">Αποθήκευση</button>
+        </div>
+
+        <div style="background:var(--surface,#f7f9fc); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:16px;">
+          <p style="font-size:13px;font-weight:700;color:var(--navy);margin:0 0 6px;">📥 Μαζική εισαγωγή πολλών προϊόντων (CSV)</p>
+          <p style="font-size:11px;color:#666;margin:0 0 8px;">Το αρχείο CSV πρέπει να έχει επικεφαλίδες: <code>code,description,unit,vat</code> (το vat ως δεκαδικό, π.χ. 0.13 για 13%, ή κενό)</p>
+          <input type="file" id="adm_csv_file" accept=".csv" style="margin-bottom:8px;">
+          <button class="btn-primary" onclick="handleBulkUpload()">Εισαγωγή CSV</button>
+          <span id="bulkUploadStatus" style="font-size:12px;color:#555;margin-left:10px;"></span>
+        </div>
+
+        <input id="adm_search" placeholder="Αναζήτηση κωδικού/περιγραφής..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:8px;" oninput="renderAdminProductList()">
+        <div id="adm_product_list" style="max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:4px;"></div>
+      </div>
+
+      <div id="adminStaffTab" style="display:none;">
+        <p style="font-size:13px;font-weight:700;color:var(--navy);margin:0 0 8px;">Προσθήκη ατόμου</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; margin-bottom:14px;">
+          <input id="adm_staff_name" placeholder="Όνομα" style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+          <input id="adm_staff_pin" placeholder="PIN" style="padding:8px;border:1px solid var(--border);border-radius:4px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="adm_staff_admin"> Admin</label>
+          <button class="btn-primary" onclick="addStaff()">Προσθήκη</button>
+        </div>
+        <div id="adm_staff_list" style="border:1px solid var(--border); border-radius:4px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====================== ΡΥΘΜΙΣΕΙΣ SUPABASE — ΣΥΜΠΛΗΡΩΣΕ ΑΥΤΑ ======================
+const SUPPLIER_PRICES={"01-005012":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.675],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.34],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.35]],"01-000365":[["BAZAAR AE",1.683],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.908],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.472]],"01-000368":[["BAZAAR AE",1.683],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.706],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.19]],"01-000370":[["BAZAAR AE",1.683],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.706],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.21]],"01-000371":[["BAZAAR AE",1.683],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.706]],"01-000374":[["BAZAAR AE",1.683],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.706]],"01-003165":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.065],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",0.08],["BAZAAR AE",0.092]],"04-000912":[["ΖΕΤΑ ΕΠΕ",0.025],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.025],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.032]],"04-001299":[["ΖΕΤΑ ΕΠΕ",0.025],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.025],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.033]],"04-001197":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.024],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.325]],"02-002344":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.92]],"02-002342":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.59]],"02-002343":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.462]],"02-000709":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.4],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",12.01]],"02-002324":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.996]],"02-002335":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.6]],"02-002336":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.65]],"02-002259":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",45.537]],"02-002323":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.05]],"02-001856":[["RHODIAN NECTAR EE",10.0],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.2],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",13.987]],"01-000289":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.577],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.84],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.912]],"01-000912":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.495],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.79]],"01-000093":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.48],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.582],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.79]],"01-000096":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.752],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.9]],"01-005120":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.34]],"01-005121":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",40.91]],"01-005273":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.008]],"01-005039":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.1],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.31]],"01-005270":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.058]],"01-002946":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.18],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",6.25]],"01-005269":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.016]],"01-005268":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.488]],"01-000164":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.43],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",17.88]],"01-005272":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",10.191]],"01-000423":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.77],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",12.207]],"01-000138":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.92]],"01-001368":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.56]],"01-001321":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.65],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.314]],"01-004986":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.27]],"01-005019":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.34]],"01-000514":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.048]],"01-001372":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.309],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",17.0],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",18.102]],"01-002269":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.6],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",12.857]],"01-003927":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.1],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.41]],"01-001570":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",4.15],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.516]],"01-001243":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.755],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",4.15]],"01-005099":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",13.8],["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",16.635]],"01-004568":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.2]],"01-005174":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",2.977],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.095]],"01-002960":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",4.94],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.857]],"01-001080":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.197]],"01-004570":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.02]],"01-000333":[["ΜΕΤΡΟ ΑΕΒΕ",2.42],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.633],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.01]],"01-000332":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",1.821],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.15],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.184]],"01-005173":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",2.99],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.824]],"01-000411":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",3.85],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.524],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.641]],"01-001864":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.473]],"01-001245":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.804]],"01-004968":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.729],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",3.379],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.151]],"01-005237":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",15.22]],"01-005291":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.96]],"01-004348":[["ΙΒΙΣΚΟΣ ΑΕ",15.81],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",15.98],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",17.437]],"01-001980":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.984],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.33],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",8.5]],"01-001242":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.36]],"01-005176":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",3.837],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.13]],"01-001802":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.07],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",9.99]],"01-002071":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.43],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",3.6],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.019]],"01-005264":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.26]],"01-005284":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.27]],"01-005259":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.092]],"01-005260":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.102]],"01-005277":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.22]],"01-005276":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.219]],"01-005282":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.415]],"01-005278":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.069]],"01-005279":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.14]],"01-005280":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.203]],"01-005281":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.22]],"01-005094":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",0.18],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.856]],"01-005096":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",3.56],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.665],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.6]],"01-001407":[["ΑΝΤΩΝΟΠΟΥΛΟΣ Ν, OLYMPIA A.B.E.E.",1.52],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",2.163],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.54]],"01-001761":[["ΑΝΤΩΝΟΠΟΥΛΟΣ Ν, OLYMPIA A.B.E.E.",2.24],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",3.57],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.85]],"01-005162":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.65],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.83]],"01-005275":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.083]],"01-003054":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.45],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.05]],"01-003591":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.03]],"01-000648":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.33],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.618]],"01-000892":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.04],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.234]],"01-000649":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.26],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.632]],"01-001615":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.21],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.284]],"01-000826":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.176]],"01-005293":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.13]],"01-005296":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.24]],"01-005294":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.13]],"01-005286":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.899]],"01-005249":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.915]],"01-005247":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.071]],"01-005248":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.549]],"01-005250":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.454]],"01-000335":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",7.38],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.45]],"01-000145":[["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",0.713],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.87],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.905]],"01-000146":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.91],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.928],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.99]],"01-000149":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.034],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.901]],"01-001529":[["ΕΛΕΤΡΟ ΑΕ",3.1],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.25]],"01-001824":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.25]],"01-002016":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.64]],"01-004245":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.448],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.526],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.78]],"01-005288":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.988]],"01-005289":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.949]],"01-000356":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",8.251],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.854],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.34]],"01-002183":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",5.299],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.132],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.299]],"01-004081":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.75],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.2],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.2]],"01-005008":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.147],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.0],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.1]],"01-000174":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",3.9],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.165],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.381]],"01-000183":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.863],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.6]],"01-000240":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.43],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",3.9],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.05]],"01-000676":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.79],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.155],["ΕΛΕΤΡΟ ΑΕ",10.71]],"01-001559":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.383],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.956],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.442]],"01-005178":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.811],["ΕΛΕΤΡΟ ΑΕ",17.056]],"01-005009":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.76]],"01-001481":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.517],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.85],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.88]],"01-002807":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.586],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.95]],"01-002806":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",9.6],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",13.3]],"01-000515":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.7],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.73]],"01-000626":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.315],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",8.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.7]],"01-000654":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.815],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.85],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",11.0]],"01-000001":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.457]],"01-000708":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.12],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.5]],"01-000529":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.332],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.67],["ΕΛΕΤΡΟ ΑΕ",4.122]],"01-000031":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.608]],"01-004086":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.094],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.14]],"01-001079":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.86]],"01-005244":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.692]],"01-005245":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.789]],"01-000530":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.87],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.167]],"01-000492":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.096],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.43]],"01-001532":[["ΖΑΣΠΑ ΑΕ",3.05],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.1],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.73]],"01-003313":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.39],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.575],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.413]],"01-002233":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.91]],"01-002810":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.41],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.35]],"01-001009":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.615]],"01-001010":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.3]],"01-005154":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.385]],"01-005261":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.66]],"01-005138":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.565]],"01-005155":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.743]],"01-005262":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.94]],"01-005158":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.445]],"01-005135":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.055]],"01-005145":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.055]],"01-005139":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.81]],"01-005147":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.535]],"01-005149":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.535]],"01-005263":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.71]],"01-005160":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.05]],"01-005156":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.125]],"01-005159":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.701]],"01-005144":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.9]],"01-005152":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.845]],"01-005151":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.05]],"01-005146":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.6]],"01-005153":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.415]],"01-005148":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.155]],"01-005137":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.105]],"01-005161":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.937]],"01-005136":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.875]],"01-005157":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.605]],"01-005142":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.345]],"01-005134":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.855]],"01-005150":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.911]],"01-005143":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.67]],"01-000382":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.22],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",4.007]],"01-001483":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.42]],"01-005285":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",15.554]],"01-004585":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.234]],"01-004584":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.234]],"01-004052":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.791]],"01-000534":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.819],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",3.584]],"01-003302":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.577],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.684]],"01-000060":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.533],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",7.128],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.271]],"01-004049":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.092]],"01-004762":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.702]],"01-002103":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.163]],"01-005023":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.055],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.058],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",0.1]],"01-003037":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.585],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.365]],"01-000946":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.377],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.742],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.05]],"01-004088":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.958],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.48],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.85]],"01-003014":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.647]],"01-005088":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.411],["ΕΛΕΤΡΟ ΑΕ",4.53],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.75]],"01-004680":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.405],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.12]],"01-004678":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.33]],"01-001925":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.07]],"01-004194":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",3.42],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.56]],"01-004965":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.167],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.51]],"01-005200":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",92.7]],"01-001274":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",54.75]],"01-004850":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",57.0]],"01-005201":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",38.25]],"01-001006":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.76]],"01-000769":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.24],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.046]],"01-000770":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.566]],"01-000721":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.5]],"01-004203":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.086]],"01-004537":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.662],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.937],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.3]],"01-000178":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.445]],"01-001423":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.3],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.495]],"01-000224":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.006],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.01],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.01]],"01-000220":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.33],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.35]],"01-000223":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.009],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.01],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.01]],"01-003367":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.78],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.82]],"01-005125":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.033],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.045]],"01-003366":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45]],"01-000717":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45]],"01-000229":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.45]],"01-000271":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.37],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.914]],"01-000671":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.42]],"01-002652":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.256],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.78]],"01-002653":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.469],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.98]],"01-001576":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.63]],"01-001577":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.49]],"01-000315":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.59],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.88]],"01-002846":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",5.417],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.833]],"01-003358":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.38],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.6],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",2.73]],"01-005295":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.016]],"01-001929":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",15.244]],"01-000605":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.0],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.33]],"01-003388":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.674]],"01-002240":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.933]],"01-000903":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.19]],"01-005104":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.569]],"01-001419":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.37],["ΕΛΕΤΡΟ ΑΕ",0.595]],"01-000363":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.205]],"01-002316":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.37],["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-002088":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.046],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.05]],"01-002089":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.046]],"01-001415":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.046],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.051]],"01-001416":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.046],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.048]],"01-001420":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.37],["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-005107":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.567],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.603]],"01-005108":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.502]],"01-001421":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.37],["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-004913":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.002]],"01-000738":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.71],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.96]],"01-004033":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.71],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.96]],"01-001522":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",5.3],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.95],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.17]],"01-002758":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.046],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.05],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.055]],"01-004275":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.25]],"01-000200":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.417],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.26]],"01-003368":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.105],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.52],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.56]],"01-005087":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.859],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.3]],"01-001095":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.174],["ΕΛΕΤΡΟ ΑΕ",2.8]],"01-005133":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.328]],"01-002013":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.567],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.541],["ΕΛΕΤΡΟ ΑΕ",18.166]],"01-004239":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.57]],"01-000825":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.694],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.589]],"01-002185":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.465],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.734]],"01-000207":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.636],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.0]],"01-000810":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.386],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.558]],"01-003780":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.256],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.446],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",0.447]],"01-000317":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.09],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.177]],"01-003483":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.4]],"01-005238":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.4]],"01-003631":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.21],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",6.795]],"01-000307":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.097],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.18]],"01-000349":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.071],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.04],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.3]],"01-005191":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.4]],"01-000466":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.304],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.09],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.3]],"01-000513":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.055],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.16],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.226]],"01-000657":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.709],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.56]],"01-000659":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.447],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.48],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.82]],"01-000623":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.96],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.5],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.27]],"01-000625":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.302],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.1]],"01-000521":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.35],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.698],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.72]],"01-000522":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.713],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.5]],"01-000524":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.33]],"01-001430":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.509],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.082],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.2]],"01-004189":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.46]],"01-005246":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.339]],"01-005079":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.853],["ΕΛΕΤΡΟ ΑΕ",13.59]],"01-004990":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.39]],"01-004991":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.39]],"01-000120":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.691],["ΚΑΣΕΡΗΣ Π.&ΣΙΑ ΟΕ",3.247]],"01-005122":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.53]],"01-004482":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.8],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.119]],"01-001034":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.23],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.4],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-000265":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.73]],"01-004579":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.59]],"01-000306":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.375],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.45]],"01-004479":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.85]],"01-005086":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.35],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.3],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.31]],"01-000407":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.6]],"01-000421":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.66]],"01-004988":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.155]],"01-005054":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.14]],"01-005267":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.56]],"01-005265":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.53]],"01-005266":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.98]],"01-004989":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.41]],"01-000582":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.365],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.41]],"01-005271":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.15]],"01-000621":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.54],["ΚΑΣΕΡΗΣ Π.&ΣΙΑ ΟΕ",3.177]],"01-005241":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.226]],"01-005239":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.108]],"01-005240":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.91]],"01-000085":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.52],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.618]],"01-000132":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",22.81],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",25.492]],"01-001742":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.806]],"01-001445":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.14],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.74]],"01-002087":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.944],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.467],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.547]],"01-000734":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.83],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.32],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.69]],"01-002168":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.696],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.489],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.52]],"01-001239":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.892],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.527],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.544]],"01-005014":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.18],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.22],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.225]],"01-000452":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.804],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.133],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.485]],"01-001852":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.801],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.433],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.441]],"01-000824":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.468]],"01-000485":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.604],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.0],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.409]],"01-002282":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",18.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",20.143]],"01-005190":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.804]],"01-001537":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.135],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.185],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.505]],"01-000616":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.623],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.823],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.869]],"01-004971":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.143],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.24]],"01-001565":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.617],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.06],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.117]],"01-000742":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.963],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.058],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.073]],"01-001961":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.56]],"01-004289":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",13.54],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",14.2]],"01-005119":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",19.9]],"01-004109":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.661],["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",12.3]],"01-001265":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",14.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",24.22],["ΙΒΙΣΚΟΣ ΑΕ",24.28]],"01-000202":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.6],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.84]],"01-004121":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.046]],"01-000693":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",8.372],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.725]],"01-004716":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.758]],"01-004148":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.43]],"01-004045":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.75]],"01-000427":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",11.95],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.1]],"01-004300":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.05],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.5]],"01-000575":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.036],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.84]],"01-000631":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",19.0],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",25.0],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",33.7]],"01-000153":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.65]],"01-003828":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.567],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.45]],"01-005274":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.8]],"01-001363":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.4],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.7]],"01-003540":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.976],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",1.992],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.65]],"01-000293":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",1.992],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.029],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.5]],"01-004978":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.62]],"01-001353":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.232],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.45],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.15]],"01-001354":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.9],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.95],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.14]],"01-004982":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.95],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",6.372]],"01-000920":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",1.9]],"01-001356":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.73]],"01-000182":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.8],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.42]],"01-004985":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.7],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",9.98]],"01-003829":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.44],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.4]],"01-000800":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.367],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",10.275]],"01-002256":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.74]],"01-005018":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.25]],"01-003479":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.7]],"01-005290":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.9]],"01-005021":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.456],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.6]],"01-001682":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.7],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.722],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.0]],"01-005026":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.372]],"01-001348":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.4],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.45]],"01-003477":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.08]],"01-001678":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.477],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.933]],"01-005118":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.28]],"01-003478":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.542]],"01-001349":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.94]],"01-000090":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.304],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.52]],"01-000245":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.21],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",10.0]],"01-000342":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.908],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",14.1],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",14.231]],"01-000490":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.76],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.333],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.375]],"01-000593":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.273],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.1]],"01-000161":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.712],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.5]],"01-000191":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.142],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.31]],"01-002798":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.23]],"01-005242":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.6]],"01-003395":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",10.83]],"01-002799":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.059],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.094]],"01-002365":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.194],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.63]],"01-000863":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.509],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.25]],"01-000596":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.3],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.5]],"01-000662":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.35]],"01-002790":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.067]],"01-004493":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",8.4],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",10.6]],"01-003564":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",9.8],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",12.52]],"01-001456":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",9.8],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",11.73]],"01-001539":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",7.28],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",7.5],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.54]],"01-000651":[["Γ.& Δ ΤΖΩΡΤΖΗΣ ΟΕ",3.2],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.85]],"01-002801":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.79]],"01-004221":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",33.23]],"01-002207":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.33],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.42]],"01-000551":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.33],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.42]],"01-000550":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.33],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.42]],"01-000549":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.33],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.42]],"01-005089":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",7.22],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",10.56]],"01-005090":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.09],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",10.69]],"01-000235":[["ΕΛΕΤΡΟ ΑΕ",5.7],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.234],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.8]],"01-000236":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",8.585],["ΕΛΕΤΡΟ ΑΕ",8.585]],"01-005091":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",5.659],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.54]],"01-001434":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.948],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.077],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.275]],"01-002314":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.385],["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-003355":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.056]],"01-001431":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.857],["ΜΕΤΡΟ ΑΕΒΕ",2.194],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.235]],"01-004992":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.412]],"01-004062":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.421],["ΕΛΕΤΡΟ ΑΕ",0.723]],"01-001729":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.064]],"01-001379":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",24.5]],"01-001432":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.767],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.027],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.15]],"01-002755":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.385],["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-003356":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",0.042]],"01-000535":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.732],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.8],["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",2.905]],"01-000538":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.56],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.305],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",6.495]],"01-005283":[["FOODBALLER ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",4.68]],"02-002213":[["MISSIKOS M.Z I.K.E.",0.96]],"02-001690":[["MISSIKOS M.Z I.K.E.",0.96]],"02-001689":[["MISSIKOS M.Z I.K.E.",0.96]],"02-002047":[["MISSIKOS M.Z I.K.E.",1.147]],"02-000905":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",10.33],["MISSIKOS M.Z I.K.E.",12.13]],"02-000010":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",9.6],["MISSIKOS M.Z I.K.E.",10.82],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",11.575]],"02-001007":[["MISSIKOS M.Z I.K.E.",13.11],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",14.214]],"02-001000":[["MISSIKOS M.Z I.K.E.",13.11],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",14.214]],"02-001627":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",14.214],["MISSIKOS M.Z I.K.E.",14.81]],"02-002183":[["MISSIKOS M.Z I.K.E.",8.47]],"02-001003":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",7.25],["MISSIKOS M.Z I.K.E.",8.47]],"02-000792":[["MISSIKOS M.Z I.K.E.",8.47]],"02-002292":[["MISSIKOS M.Z I.K.E.",3.422]],"02-002275":[["MISSIKOS M.Z I.K.E.",32.34],["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",39.146]],"02-000688":[["MISSIKOS M.Z I.K.E.",18.765]],"01-002120":[["NOVAVITA HELLAS E.E",5.15]],"01-005114":[["NOVAVITA HELLAS E.E",3.04]],"01-005115":[["NOVAVITA HELLAS E.E",3.1]],"01-004230":[["NOVAVITA HELLAS E.E",4.5]],"01-001892":[["NOVAVITA HELLAS E.E",4.5]],"01-002595":[["NOVAVITA HELLAS E.E",4.12]],"01-005117":[["NOVAVITA HELLAS E.E",3.6]],"01-004269":[["NOVAVITA HELLAS E.E",3.6]],"02-002306":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002305":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002303":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002301":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002302":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002304":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",6.9]],"02-002300":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.0]],"02-002299":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",3.0]],"02-002307":[["PREMIUM BRANDS IMPORTS ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",20.0]],"02-001188":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",1.89],["RHODIAN NECTAR EE",2.2]],"02-001090":[["RHODIAN NECTAR EE",7.5],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",8.99]],"02-001360":[["RHODIAN NECTAR EE",10.5],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",14.85]],"01-000459":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.926],["SHKEMBI RUS.TOMOR",1.5],["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",1.5]],"02-000669":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",13.91],["ΑΙΘΡΙΑ ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",17.33]],"02-001547":[["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",12.751],["ΜΕΤΡΟ ΑΕΒΕ",13.145],["ΑΙΘΡΙΑ ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ",14.13]],"04-000447":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",6.05]],"04-000414":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",6.14]],"04-001509":[["ΤΣΙΜΕΤΑΣ Σ.Γ & ΣΙΑ ΙΚΕ",2.6],["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",3.71]],"04-001508":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",0.12],["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",0.12],["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",0.15]],"02-002230":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",9.9]],"02-000907":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",0.76],["ΜΕΤΡΟ ΑΕΒΕ",0.89],["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",1.003]],"02-002329":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",0.267],["ΜΕΤΡΟ ΑΕΒΕ",0.279],["Β.Α.ΚΑΜΠΟΥΡΑΚΗΣ ΞΕΝ.&ΤΟΥΡ.ΕΠΙΧ .ΑΕ",0.39]],"02-002333":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",0.281]],"01-003004":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",1.19]],"01-004999":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",0.479],["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",0.558],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.79]],"01-001834":[["ΑΛΦΑ-ΒΗΤΑ ΒΑΣΙΛΟΠΟΥΛΟΣ ΑΕ",7.682]],"02-002334":[["ΑΝΤΩΝΟΠΟΥΛΟΣ Ν, OLYMPIA A.B.E.E.",10.0]],"01-002137":[["ΑΝΤΩΝΟΠΟΥΛΟΣ Ν, OLYMPIA A.B.E.E.",1.92],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.7],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",2.751]],"01-003625":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.189]],"01-004098":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.823]],"01-005199":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.35]],"01-001189":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",5.001]],"01-005128":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",2.5]],"01-002517":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.9]],"01-000635":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.9]],"01-002291":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.9]],"01-004134":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",6.0]],"01-002275":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",6.0]],"01-004816":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.8],["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",6.0]],"01-003079":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.16]],"01-002740":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.2]],"01-002853":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-002235":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.0]],"01-002338":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.7]],"01-002850":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.0]],"01-002339":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-004727":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.15]],"01-004728":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.15]],"01-000908":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.16]],"01-004729":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.2]],"01-000670":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.55]],"01-005124":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.45]],"01-004852":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.45]],"01-004531":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.25]],"01-003080":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",2.0]],"01-002157":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.4]],"01-003249":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.2]],"01-002272":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-002270":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-002274":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.2]],"01-002271":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-003077":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.14]],"01-002855":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.122]],"01-002242":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.09]],"01-004122":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.1]],"01-002245":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.122]],"01-002244":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.1]],"01-002742":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-002854":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-002809":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",3.4]],"01-003886":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.95]],"01-002273":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.946]],"01-001552":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.3]],"01-004547":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-005198":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",3.0]],"01-003684":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",0.9]],"01-004759":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",3.8]],"01-004758":[["ΑΡΤΟΔΗΜΙΟΥΡΓΙΕΣ ΝΙΚΟΛΗ Ο Ε",1.1]],"04-001265":[["ΖΕΤΑ ΕΠΕ",0.033],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.048],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",0.05]],"01-000152":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",4.3],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.365],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",5.731]],"01-000219":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",3.53],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.662]],"01-000728":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.742],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.75]],"01-000392":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",3.1],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.141]],"01-001693":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.67],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.15],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",3.51]],"01-000362":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.16]],"01-000637":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",1.69]],"01-004205":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.78]],"01-001837":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.35],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.15]],"01-001429":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.007],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-005059":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-004315":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.75],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-000822":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.596],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-000940":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-002783":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",2.2]],"01-002263":[["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",4.3]],"01-001075":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.55],["ΑΡΦΑΡΑΣ ΒΑΣΙΛΕΙΟΣ ΑΕ",4.0]],"02-000472":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.629]],"02-000473":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.773]],"02-000474":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.774]],"02-000755":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.031]],"02-000742":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.032]],"02-000684":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.651]],"02-000477":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.768]],"02-000478":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.774]],"02-002004":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.032]],"02-000414":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.642]],"02-000415":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.966]],"02-000416":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.681]],"02-000745":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",8.641]],"02-000420":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.642]],"02-000417":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.878]],"02-000418":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.714]],"02-000744":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",8.641]],"02-001668":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.772]],"02-001678":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.812]],"02-000391":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.6]],"02-000392":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.6]],"02-000281":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.113]],"02-001220":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.448]],"02-001305":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.671]],"02-001221":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.652]],"02-001306":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.714]],"02-001769":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.013]],"02-001981":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.642]],"02-000241":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.618]],"02-000743":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",8.641]],"02-000705":[["ΜΕΤΡΟ ΑΕΒΕ",0.8],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.996]],"02-000551":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.078]],"02-000553":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.659]],"02-000548":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.171]],"02-000550":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.67]],"02-001648":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.068]],"02-001043":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.482]],"02-002283":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.564],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.752]],"02-000787":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.482]],"02-002284":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.118],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.166]],"02-002282":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.329]],"02-001262":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.048]],"02-002281":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.309],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.67]],"02-000332":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.443]],"02-000330":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.66]],"02-000047":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",11.5],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",12.06]],"02-002098":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",12.9],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",15.21],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.119]],"02-000920":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",13.697]],"02-000560":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",21.926]],"02-000572":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.32]],"02-001841":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",35.587]],"02-000232":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.483]],"02-001178":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",12.075]],"02-000247":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",16.53],["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",17.955],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",21.165]],"02-001092":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",21.17]],"02-001177":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",18.506],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",20.643]],"01-002133":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",12.9],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",12.92]],"02-002192":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.48]],"02-002115":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",3.56],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",4.37]],"02-001383":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.0],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",15.0]],"02-000930":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.161]],"02-001793":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.19]],"02-001055":[["ΜΕΤΡΟ ΑΕΒΕ",0.11],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.232]],"02-000876":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.235]],"02-000925":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",49.87],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",75.0]],"02-002016":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",4.0]],"02-001374":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",4.0]],"02-000138":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",5.622]],"02-001501":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.0]],"02-000884":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.0]],"02-001626":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",3.162]],"02-002318":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.322]],"02-002294":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.965]],"02-002293":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.728]],"02-002103":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.016],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",1.1]],"02-001473":[["ΥΙΟΙ Φ ΔΟΥΡΟΥ ΟΕ",1.117],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.12],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.321]],"02-002319":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.544]],"02-002102":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.016],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",1.1]],"02-001471":[["ΥΙΟΙ Φ ΔΟΥΡΟΥ ΟΕ",1.02],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.08],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.148]],"02-001942":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.861]],"02-002289":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.083],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",1.1]],"02-001472":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.12],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.245]],"02-000716":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",20.98],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",22.63]],"02-000694":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",11.191]],"02-001540":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",11.192]],"02-002101":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",7.91],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",9.263]],"02-001079":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.97]],"02-000443":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",26.64],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",27.985]],"02-000285":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.837]],"02-000837":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",32.518],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",34.523]],"02-000191":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.916]],"02-000739":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.96]],"02-001076":[["ΜΕΤΡΟ ΑΕΒΕ",0.84],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.953]],"02-000903":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.274]],"02-001488":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.802]],"02-001227":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",2.359]],"02-000405":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.112]],"02-001075":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.96],["ΜΕΤΡΟ ΑΕΒΕ",1.03]],"02-001788":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.907]],"02-000587":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.347]],"02-002045":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.598]],"02-000066":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.981]],"02-001406":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.983]],"02-000299":[["ΜΕΤΡΟ ΑΕΒΕ",0.66],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.898]],"02-000707":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",9.6],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",15.0]],"02-000774":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.603]],"02-001980":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.207]],"02-001423":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.271]],"02-000171":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",1.166]],"02-000172":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",0.165]],"02-002246":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",3.6]],"02-000528":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.282]],"02-000452":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.218]],"02-000447":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.12]],"02-000355":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",17.765]],"02-002258":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",13.784],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",14.179]],"02-000469":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",26.4],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",27.883]],"02-000348":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",23.428]],"02-000987":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",38.265]],"02-001091":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.548]],"02-001683":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",35.435]],"02-000187":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",18.316]],"02-001094":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.502]],"02-001268":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",11.838],["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",14.418]],"02-002113":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",17.918]],"02-002084":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",18.931]],"02-000522":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",16.72]],"02-000486":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",19.998]],"02-002112":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",12.582]],"02-000435":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",18.678],["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",20.045]],"02-000238":[["ΑΦΟΙ ΚΑΤΡΗ ΟΕ",19.579]],"01-000091":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.022],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",1.289]],"01-001091":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.795],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",1.014]],"01-004919":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",1.047]],"01-004914":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.789]],"01-000548":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.046],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",1.417]],"01-001557":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",2.84],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.884]],"01-002299":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",5.229]],"01-005043":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.267]],"01-005040":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",2.87]],"01-005041":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.208]],"01-005042":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.228]],"01-002681":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.233]],"01-004918":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",5.904]],"01-002206":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",6.612]],"01-002136":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",16.5],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",16.5]],"01-001791":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.107],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.114]],"01-004917":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",4.428]],"01-004922":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.081],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.085]],"01-001792":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.084],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.089]],"01-004924":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",5.52]],"01-004923":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.166]],"01-004683":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.188]],"01-002671":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.05]],"01-004916":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",4.92]],"01-002266":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",3.608]],"01-000500":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",4.182]],"01-004915":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",3.362]],"01-003940":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.055],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.062]],"01-004197":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.074]],"01-001971":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.028],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.032],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.034]],"01-000360":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.4],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.75],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",4.256]],"01-002091":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",0.539],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.75],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.545]],"01-000589":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.405],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",4.7]],"01-000107":[["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",9.88],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",9.95],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.88]],"01-002670":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.65],["ΑΦΟΙ ΠΑΡΑΣΚΕΥΑ ΕΜΠΟΡΙΚΗ ΑΕ",5.15]],"04-000913":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.64],["Β.Α.ΚΑΜΠΟΥΡΑΚΗΣ ΞΕΝ.&ΤΟΥΡ.ΕΠΙΧ .ΑΕ",0.766]],"02-000207":[["Β.Α.ΚΑΜΠΟΥΡΑΚΗΣ ΞΕΝ.&ΤΟΥΡ.ΕΠΙΧ .ΑΕ",5.149]],"02-000558":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.411]],"02-000559":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.536]],"02-000865":[["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",1.065],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.304]],"02-002223":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-000866":[["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",0.974],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.367]],"02-000295":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.514]],"02-002351":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.583]],"02-002352":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.583]],"02-000297":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.502]],"02-001098":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.383]],"02-002220":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.912]],"02-002170":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.383]],"02-002219":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-000843":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-000846":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-000841":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-001926":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-000842":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.913]],"02-001937":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.636]],"02-000845":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.469]],"02-001839":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.636]],"02-000844":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",6.267]],"02-002276":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",8.4]],"02-000180":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.452]],"02-000769":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.514]],"02-000181":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.452]],"02-000768":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.514]],"02-001362":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.304]],"02-001073":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.381]],"02-001099":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.427]],"02-000867":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.304],["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",1.34]],"02-002353":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.356]],"02-000868":[["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",1.1],["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.304]],"02-000676":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.356],["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",1.66]],"02-001630":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.114]],"02-000870":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.339]],"02-001096":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.387]],"02-001646":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.769]],"02-001223":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.637]],"02-000860":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.11]],"02-000139":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.35]],"02-002311":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.23]],"02-002345":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.25]],"02-000863":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",60.0]],"02-000185":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",60.0]],"02-001377":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",4.541]],"02-000839":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",2.88]],"02-000058":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.0],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.0],["ΥΙΟΙ Φ ΔΟΥΡΟΥ ΟΕ",10.0]],"02-001367":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",15.0]],"02-002310":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",4.2]],"02-002309":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",4.2]],"02-002332":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.15]],"02-000182":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.571]],"02-001097":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.465]],"02-000861":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.253]],"02-000557":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.57]],"02-002034":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.438]],"02-000556":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.262]],"02-000555":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.411]],"02-000889":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",3.54]],"02-001988":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.261]],"02-000554":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.136]],"02-002308":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.169]],"01-001827":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.45]],"01-002342":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.45]],"01-002895":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.417]],"01-002894":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.417]],"01-004314":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.423]],"01-004412":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.416]],"01-002893":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",0.417]],"01-004886":[["ΒΑΠ ΠΑΝΤΕΛΗΣ ΚΟΥΓΙΟΣ ΑΒΕΕ",1.2],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.35],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.671]],"02-002085":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",8.6]],"02-001804":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.0]],"01-001391":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",6.5],["ΕΛΕΤΡΟ ΑΕ",7.11]],"01-005234":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.0]],"01-005233":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.5]],"01-005231":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.5]],"01-005232":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",6.3]],"01-005060":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.35]],"01-000571":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.8]],"01-000449":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",7.1]],"01-002949":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",7.0]],"01-005230":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.6]],"01-002288":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",6.9]],"01-005229":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.95]],"01-004887":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",5.2]],"01-005203":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.079]],"01-000470":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",15.5]],"01-000567":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",8.4]],"01-002184":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",16.72],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",18.25],["ΕΛΕΤΡΟ ΑΕ",28.26]],"01-002976":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.125]],"01-005254":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.2]],"01-000463":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.15],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",1.621],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.268]],"01-003561":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",1.45]],"01-003481":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",3.7]],"01-001684":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.9]],"01-000122":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",14.8]],"01-001923":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.4]],"01-002840":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.6]],"01-005236":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.3]],"01-004843":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",9.5],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.3]],"01-004791":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.85]],"01-003370":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",6.25]],"01-002290":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",10.4]],"01-005235":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",9.6]],"01-003480":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.7],["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.95]],"01-005123":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.476]],"01-000294":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",1.45],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.45]],"01-004332":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",2.5]],"01-001058":[["ΒΑΣΙΛΕΙΟΥ ΤΡΟΦΙΝΚΟ ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ ΕΙΔΩΝ ΔΙΑΤΡΟΦΗΣ",4.45],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.5]],"02-000396":[["ΒΕΡΓΩΤΗΣ ΕΜΜΑΝΟΥΗΛ &ΣΙΑ ΕΕ",0.577]],"02-000349":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",20.77]],"02-002316":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",9.36]],"02-002216":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",11.106]],"02-002187":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",7.91]],"02-000492":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",4.9]],"02-000493":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",10.09],["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",11.643]],"02-002105":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",3.45]],"02-002312":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",2.31]],"02-000723":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",6.94]],"02-002263":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",2.17]],"02-000315":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",37.54]],"02-002204":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",6.95]],"02-002317":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",25.73]],"02-000539":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",16.56]],"02-002228":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",12.15]],"02-002043":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",6.9]],"02-001451":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",4.55]],"02-000083":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",20.5]],"02-000084":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",14.9]],"02-000412":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",19.73]],"02-000343":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",21.51]],"02-002260":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",13.312]],"02-001338":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",169.74],["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",177.82]],"02-000538":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",18.905],["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",22.31]],"02-000400":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",22.089]],"02-000659":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",18.972]],"02-000303":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",20.53]],"02-001552":[["ΒΡΟΥΛΛΗΣ ΧΡΗΣΤΟΣ & ΣΙΑ ΕΕ",31.15]],"01-004435":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",4.9],["Γ.& Δ ΤΖΩΡΤΖΗΣ ΟΕ",6.9]],"01-001718":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",5.9],["Γ.& Δ ΤΖΩΡΤΖΗΣ ΟΕ",6.9]],"01-003715":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",5.9],["Γ.& Δ ΤΖΩΡΤΖΗΣ ΟΕ",6.9]],"04-001237":[["ΓΕΡΟΝΤΗΣ ΕΜΜΑΝΟΥΗΛ & ΥΙΟΙ ΟΕ",29.99]],"04-001515":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",6.507],["ΓΕΡΟΝΤΗΣ ΕΜΜΑΝΟΥΗΛ & ΥΙΟΙ ΟΕ",10.56]],"56-000023":[["ΓΕΡΟΝΤΗΣ ΕΜΜΑΝΟΥΗΛ & ΥΙΟΙ ΟΕ",0.65]],"59-000750":[["ΓΕΡΟΝΤΗΣ ΕΜΜΑΝΟΥΗΛ & ΥΙΟΙ ΟΕ",1.95]],"01-005055":[["ΓΙΑΝΟΥΚΛΑ ΛΟΥΚΙΑ & ΣΙΑ Ο.Ε",1.18]],"01-005056":[["ΓΙΑΝΟΥΚΛΑ ΛΟΥΚΙΑ & ΣΙΑ Ο.Ε",3.9]],"01-000341":[["ΔΕΛΗΓΙΑΝΝΑΚΗΣ ΣΤ. & ΣΙΑ Ο.Ε.",28.061],["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",30.0]],"01-001020":[["ΔΕΛΗΓΙΑΝΝΑΚΗΣ ΣΤ. & ΣΙΑ Ο.Ε.",8.5],["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",10.0]],"01-001371":[["ΔΕΛΗΓΙΑΝΝΑΚΗΣ ΣΤ. & ΣΙΑ Ο.Ε.",13.8]],"01-002389":[["ΔΕΛΗΓΙΑΝΝΑΚΗΣ ΣΤ. & ΣΙΑ Ο.Ε.",5.65]],"04-000045":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.16]],"04-001280":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",44.0]],"04-000262":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.09]],"04-001510":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.087],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.09]],"04-001211":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.09]],"01-000520":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.1],["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",1.5]],"01-004156":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.056]],"01-004232":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.78]],"01-002382":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",62.0]],"01-002669":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",8.97]],"01-000340":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.05]],"01-001566":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.55]],"01-004720":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",9.6]],"01-000208":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.25]],"01-000747":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.65]],"01-000719":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.25]],"01-004519":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.14]],"01-003736":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.5]],"01-000215":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.181]],"01-000213":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.14]],"01-000216":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.181]],"01-001578":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.65]],"01-000228":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",5.5]],"01-000232":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",1.92]],"01-000756":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.5]],"01-004031":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",7.9]],"01-001575":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.12]],"01-000871":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",5.95]],"01-004833":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.28]],"01-000961":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.44]],"01-005164":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.85]],"01-004836":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.22]],"01-005170":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.88]],"01-000962":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.357]],"01-000963":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.85]],"01-000281":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",6.82]],"01-000975":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",6.15]],"01-001630":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",3.0],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.0]],"01-004195":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",14.744]],"01-002144":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.9]],"01-002950":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",0.115]],"01-002990":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.55]],"01-003696":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.88]],"01-003699":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.88]],"01-004623":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",29.0]],"01-005253":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",30.0]],"01-005252":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",23.0]],"01-005251":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",30.0]],"01-004059":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",10.8]],"01-004846":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",6.0]],"01-004845":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",6.0]],"01-005204":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",13.0]],"01-003944":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",9.945]],"01-005171":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",2.5]],"01-000133":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",4.9]],"01-004676":[["ΔΙΜΕΛΗΣ FOOD AΒΕΕ \"ΤΡΟΦΟΣΥΝΘΕΣΗ ΑΒΕΕ\"",79.0]],"01-001194":[["ΔΥΝΑΜΙΣ ΡΟΔΟΥ ΕΤΑΙΡΕΙΑ ΠΕΡΙΩΡΙΣΜΕΝΗΣ ΕΥΘΥΝΗΣ",3.825],["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",3.994]],"01-005312":[["ΕΛΕΤΡΟ ΑΕ",6.255]],"01-005314":[["ΕΛΕΤΡΟ ΑΕ",7.11]],"01-005313":[["ΕΛΕΤΡΟ ΑΕ",7.11]],"01-003537":[["ΕΛΕΤΡΟ ΑΕ",11.205]],"01-002874":[["ΕΛΕΤΡΟ ΑΕ",24.84]],"01-005316":[["ΕΛΕΤΡΟ ΑΕ",14.94]],"01-003402":[["ΕΛΕΤΡΟ ΑΕ",19.92]],"01-002465":[["ΕΛΕΤΡΟ ΑΕ",2.025]],"01-004740":[["ΕΛΕΤΡΟ ΑΕ",1.98]],"01-002823":[["ΕΛΕΤΡΟ ΑΕ",1.935],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.142]],"01-005184":[["ΕΛΕΤΡΟ ΑΕ",0.315]],"01-000749":[["ΕΛΕΤΡΟ ΑΕ",3.1],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.38]],"01-005315":[["ΕΛΕΤΡΟ ΑΕ",12.825]],"01-002192":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",11.427],["ΕΛΕΤΡΟ ΑΕ",17.865]],"01-005321":[["ΕΛΕΤΡΟ ΑΕ",27.855]],"01-005298":[["ΕΛΕΤΡΟ ΑΕ",4.59]],"01-005299":[["ΕΛΕΤΡΟ ΑΕ",6.29]],"01-001828":[["ΕΛΕΤΡΟ ΑΕ",7.31]],"01-000397":[["ΕΛΕΤΡΟ ΑΕ",4.675]],"01-000131":[["ΕΛΕΤΡΟ ΑΕ",6.97]],"01-005036":[["ΕΛΕΤΡΟ ΑΕ",9.675]],"01-001832":[["ΕΛΕΤΡΟ ΑΕ",5.907]],"01-005302":[["ΕΛΕΤΡΟ ΑΕ",6.885]],"01-005186":[["ΕΛΕΤΡΟ ΑΕ",4.037]],"01-005306":[["ΕΛΕΤΡΟ ΑΕ",16.98]],"01-005305":[["ΕΛΕΤΡΟ ΑΕ",10.485]],"01-005304":[["ΕΛΕΤΡΟ ΑΕ",11.34]],"01-005308":[["ΕΛΕΤΡΟ ΑΕ",17.19]],"01-005307":[["ΕΛΕΤΡΟ ΑΕ",12.06]],"01-005311":[["ΕΛΕΤΡΟ ΑΕ",16.2]],"01-005309":[["ΕΛΕΤΡΟ ΑΕ",23.76]],"01-005310":[["ΕΛΕΤΡΟ ΑΕ",23.76]],"01-005300":[["ΕΛΕΤΡΟ ΑΕ",23.375]],"01-005185":[["ΕΛΕΤΡΟ ΑΕ",121.5]],"01-004529":[["ΕΛΕΤΡΟ ΑΕ",0.807]],"01-004689":[["ΕΛΕΤΡΟ ΑΕ",4.802]],"01-003432":[["ΕΛΕΤΡΟ ΑΕ",0.68]],"01-003461":[["ΕΛΕΤΡΟ ΑΕ",0.552]],"01-005030":[["ΕΛΕΤΡΟ ΑΕ",19.35]],"01-005172":[["ΕΛΕΤΡΟ ΑΕ",10.795],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",14.0]],"01-003036":[["ΕΛΕΤΡΟ ΑΕ",10.795]],"01-004508":[["ΕΛΕΤΡΟ ΑΕ",8.372]],"01-004507":[["ΕΛΕΤΡΟ ΑΕ",13.303]],"01-004509":[["ΕΛΕΤΡΟ ΑΕ",8.372]],"01-001486":[["ΕΛΕΤΡΟ ΑΕ",9.988]],"01-004504":[["ΕΛΕΤΡΟ ΑΕ",9.988]],"01-004505":[["ΕΛΕΤΡΟ ΑΕ",10.2]],"01-001523":[["ΕΛΕΤΡΟ ΑΕ",8.372]],"01-005031":[["ΕΛΕΤΡΟ ΑΕ",14.85]],"01-005032":[["ΕΛΕΤΡΟ ΑΕ",16.02]],"01-005033":[["ΕΛΕΤΡΟ ΑΕ",12.78]],"01-005035":[["ΕΛΕΤΡΟ ΑΕ",12.15]],"01-005034":[["ΕΛΕΤΡΟ ΑΕ",11.474]],"01-005029":[["ΕΛΕΤΡΟ ΑΕ",16.695]],"01-005317":[["ΕΛΕΤΡΟ ΑΕ",13.77]],"01-005318":[["ΕΛΕΤΡΟ ΑΕ",16.875]],"01-004592":[["ΕΛΕΤΡΟ ΑΕ",11.475]],"01-005301":[["ΕΛΕΤΡΟ ΑΕ",12.707]],"01-003742":[["ΕΛΕΤΡΟ ΑΕ",17.17]],"01-003500":[["ΕΛΕΤΡΟ ΑΕ",16.872]],"01-005303":[["ΕΛΕΤΡΟ ΑΕ",28.008]],"01-005028":[["ΕΛΕΤΡΟ ΑΕ",1.75]],"01-005297":[["ΕΛΕΤΡΟ ΑΕ",6.375]],"01-000234":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.904],["ΕΛΕΤΡΟ ΑΕ",5.7]],"01-001098":[["ΕΛΕΤΡΟ ΑΕ",25.986]],"01-001512":[["ΕΛΕΤΡΟ ΑΕ",9.435]],"01-001515":[["ΕΛΕΤΡΟ ΑΕ",24.792]],"01-000886":[["ΕΛΕΤΡΟ ΑΕ",6.0],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.975]],"01-005320":[["ΕΛΕΤΡΟ ΑΕ",16.65]],"01-005319":[["ΕΛΕΤΡΟ ΑΕ",14.85]],"01-005037":[["ΕΛΕΤΡΟ ΑΕ",21.462]],"01-005202":[["ΕΛΕΤΡΟ ΑΕ",14.492]],"01-003381":[["ΕΛΕΤΡΟ ΑΕ",15.512]],"01-000192":[["ΖΑΣΠΑ ΑΕ",0.183],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.19]],"01-005165":[["ΖΑΣΠΑ ΑΕ",0.4]],"01-003473":[["ΖΑΣΠΑ ΑΕ",3.5]],"01-003474":[["ΖΑΣΠΑ ΑΕ",7.5]],"04-001506":[["ΖΕΤΑ ΕΠΕ",0.2]],"04-001304":[["ΖΕΤΑ ΕΠΕ",0.2]],"04-000101":[["ΖΕΤΑ ΕΠΕ",22.64]],"04-000446":[["ΖΕΤΑ ΕΠΕ",6.998]],"04-001115":[["ΖΕΤΑ ΕΠΕ",4.617]],"04-000949":[["ΖΕΤΑ ΕΠΕ",5.387]],"04-000947":[["ΖΕΤΑ ΕΠΕ",3.583]],"04-001418":[["ΖΕΤΑ ΕΠΕ",6.974]],"04-000948":[["ΖΕΤΑ ΕΠΕ",7.572]],"04-000431":[["ΖΕΤΑ ΕΠΕ",6.143]],"04-000950":[["ΖΕΤΑ ΕΠΕ",2.603]],"04-001313":[["ΖΕΤΑ ΕΠΕ",4.361]],"04-001517":[["ΖΕΤΑ ΕΠΕ",7.815]],"04-001503":[["ΖΕΤΑ ΕΠΕ",6.61]],"04-000929":[["ΖΕΤΑ ΕΠΕ",14.416]],"04-000946":[["ΖΕΤΑ ΕΠΕ",5.754]],"04-000436":[["ΖΕΤΑ ΕΠΕ",5.161]],"04-000936":[["ΖΕΤΑ ΕΠΕ",5.161]],"04-000937":[["ΖΕΤΑ ΕΠΕ",3.197]],"04-000938":[["ΖΕΤΑ ΕΠΕ",2.74]],"04-001505":[["ΖΕΤΑ ΕΠΕ",0.132]],"04-000869":[["ΖΕΤΑ ΕΠΕ",11.92]],"04-001500":[["ΖΕΤΑ ΕΠΕ",1.493]],"04-001501":[["ΖΕΤΑ ΕΠΕ",1.054]],"04-001502":[["ΖΕΤΑ ΕΠΕ",1.2]],"04-000886":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.196],["ΖΕΤΑ ΕΠΕ",1.653]],"04-001351":[["ΖΕΤΑ ΕΠΕ",5.277]],"04-001512":[["ΖΕΤΑ ΕΠΕ",3.675]],"04-000330":[["ΖΕΤΑ ΕΠΕ",4.2]],"04-000931":[["ΖΕΤΑ ΕΠΕ",0.028],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.03]],"04-001499":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",6.1],["ΖΕΤΑ ΕΠΕ",7.311]],"04-001318":[["ΖΕΤΑ ΕΠΕ",0.314]],"04-000987":[["ΖΕΤΑ ΕΠΕ",15.0],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",15.15],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",25.0]],"04-001504":[["ΖΕΤΑ ΕΠΕ",13.76]],"04-001239":[["ΖΕΤΑ ΕΠΕ",0.011]],"04-000135":[["ΖΕΤΑ ΕΠΕ",0.03]],"04-001519":[["ΖΕΤΑ ΕΠΕ",0.08]],"04-001064":[["ΖΕΤΑ ΕΠΕ",0.037]],"04-001256":[["ΖΕΤΑ ΕΠΕ",0.164]],"04-001257":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.35],["ΖΕΤΑ ΕΠΕ",1.4],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.67]],"04-000773":[["ΖΕΤΑ ΕΠΕ",1.4],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.67]],"04-001518":[["ΖΕΤΑ ΕΠΕ",0.235]],"04-001493":[["ΖΕΤΑ ΕΠΕ",0.07],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.118]],"04-001052":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.065],["ΖΕΤΑ ΕΠΕ",0.072]],"04-000023":[["ΖΕΤΑ ΕΠΕ",1.974],["ΜΕΤΡΟ ΑΕΒΕ",4.539]],"04-001393":[["ΖΕΤΑ ΕΠΕ",0.006]],"04-000768":[["ΖΕΤΑ ΕΠΕ",0.006],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.008]],"04-001011":[["ΖΕΤΑ ΕΠΕ",0.026]],"04-000697":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.001],["ΖΕΤΑ ΕΠΕ",0.002]],"04-000583":[["ΖΕΤΑ ΕΠΕ",3.137]],"04-001119":[["ΖΕΤΑ ΕΠΕ",0.014],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.026]],"04-000492":[["ΖΕΤΑ ΕΠΕ",0.018],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.021],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.028]],"04-001432":[["ΖΕΤΑ ΕΠΕ",0.051],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.056]],"04-000704":[["ΖΕΤΑ ΕΠΕ",0.067]],"04-001150":[["ΖΕΤΑ ΕΠΕ",0.052]],"04-000106":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",6.3],["ΖΕΤΑ ΕΠΕ",8.158]],"04-000462":[["ΖΕΤΑ ΕΠΕ",0.98]],"04-001516":[["ΖΕΤΑ ΕΠΕ",2.604]],"04-000374":[["ΖΕΤΑ ΕΠΕ",4.62]],"04-000024":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.98],["ΖΕΤΑ ΕΠΕ",1.015]],"04-000461":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",3.3],["ΖΕΤΑ ΕΠΕ",3.528]],"04-000819":[["ΖΕΤΑ ΕΠΕ",3.899]],"04-000967":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.45],["ΖΕΤΑ ΕΠΕ",1.526]],"04-000979":[["ΖΕΤΑ ΕΠΕ",0.385],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.6]],"04-001269":[["ΖΕΤΑ ΕΠΕ",0.42],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.5]],"04-001461":[["ΖΕΤΑ ΕΠΕ",0.196],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.35]],"04-000640":[["ΖΕΤΑ ΕΠΕ",0.175]],"04-001129":[["ΖΕΤΑ ΕΠΕ",0.175],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.6]],"04-000726":[["ΖΕΤΑ ΕΠΕ",0.203],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.6]],"04-000054":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.25],["ΖΕΤΑ ΕΠΕ",2.478]],"04-001049":[["ΖΕΤΑ ΕΠΕ",1.932]],"04-000009":[["ΖΕΤΑ ΕΠΕ",1.05],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.2]],"04-001485":[["ΖΕΤΑ ΕΠΕ",28.224]],"04-001178":[["ΖΕΤΑ ΕΠΕ",8.585],["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",11.0]],"04-001492":[["ΖΕΤΑ ΕΠΕ",8.9]],"04-000970":[["ΖΕΤΑ ΕΠΕ",0.26]],"04-000754":[["ΖΕΤΑ ΕΠΕ",1.304]],"04-001466":[["ΖΕΤΑ ΕΠΕ",2.282]],"04-001491":[["ΖΕΤΑ ΕΠΕ",1.234]],"04-001494":[["ΖΕΤΑ ΕΠΕ",0.026]],"04-000957":[["ΖΕΤΑ ΕΠΕ",2.653]],"04-001108":[["ΖΕΤΑ ΕΠΕ",2.8]],"04-001495":[["ΖΕΤΑ ΕΠΕ",8.312]],"04-000745":[["ΖΕΤΑ ΕΠΕ",9.944]],"02-001838":[["ΖΕΤΑ ΕΠΕ",19.852]],"56-000216":[["ΖΕΤΑ ΕΠΕ",7.714]],"59-001871":[["ΖΕΤΑ ΕΠΕ",3.2]],"04-000160":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.48]],"02-001823":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.0]],"02-002198":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.0]],"02-001828":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.039]],"01-001061":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",12.838]],"01-000321":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.367]],"01-000082":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.233]],"01-000086":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.639]],"01-000113":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.286]],"01-000109":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.15],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.25]],"01-002420":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-000740":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-003686":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-003739":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.35]],"01-004039":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.284]],"01-003737":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.25]],"01-000199":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.187]],"01-002980":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-003735":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",7.327]],"01-000264":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.916]],"01-002247":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-001993":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.365]],"01-003032":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.2]],"01-002248":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.75]],"01-000287":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.644]],"01-000704":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.549]],"01-000337":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.178],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.35]],"01-001583":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.889]],"01-000696":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.9]],"01-004557":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",8.5]],"01-000701":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.054]],"01-000700":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.757]],"01-000325":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.989]],"01-000331":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.4],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.902]],"01-000702":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.444],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.964]],"01-000346":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.15],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.25]],"01-003849":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-003848":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.35]],"01-000355":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.35]],"01-002284":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.912]],"01-000925":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-000375":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.409],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.082]],"01-000698":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.223]],"01-000703":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.295]],"01-000429":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.942]],"01-000430":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.709]],"01-004558":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.885]],"01-002886":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.85]],"01-002887":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.85]],"01-000451":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.738],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.517]],"01-002074":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.65]],"01-000935":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.786]],"01-002172":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",7.891]],"01-000479":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.027]],"01-000478":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.728]],"01-000481":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.665]],"01-000959":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.66]],"01-000483":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.149]],"01-000484":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.253]],"01-000501":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.8],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.714]],"01-000511":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.95]],"01-001962":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.75]],"01-000517":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.15]],"01-000518":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",0.13],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.25]],"01-002073":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.15]],"01-000546":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.846]],"01-000545":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.95]],"01-003774":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.451]],"01-000557":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.2]],"01-004606":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-000580":[["ΚΟΝΤΕΚΑΚΗΣ  ΚΩΝΣΤΑΝΤΙΝΟΣ ΘΕΟΔΩΡΟΣ",1.375],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.251]],"01-002085":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.15]],"01-002827":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",6.272],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",8.975]],"01-000613":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-001936":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.45]],"01-002302":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.951]],"01-000634":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.959]],"01-000661":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.452]],"01-000087":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.13]],"01-005061":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",7.221]],"01-000112":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.572]],"01-000137":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.722]],"01-003170":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.017]],"01-000139":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-001668":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.107]],"01-001159":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.578]],"01-001064":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.226]],"01-000780":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.95]],"01-000779":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.734]],"01-000269":[["ΠΑΛΑΙΟΛΟΓΟΥ  ΜΙΧΑΗΛ ΧΡΗΣΤΟΣ",0.457],["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.948]],"01-001141":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",6.27]],"01-003257":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.572]],"01-000345":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.288]],"01-000357":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.723]],"01-004251":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.9]],"01-000384":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.711]],"01-000385":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.736]],"01-000408":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.211]],"01-004527":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.4]],"01-000947":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.575]],"01-001669":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",3.077]],"01-000446":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.3]],"01-000454":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",9.904]],"01-000468":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.38]],"01-000495":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",1.276]],"01-000497":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",0.792]],"01-000595":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",2.972]],"01-003095":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.45]],"01-000952":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-000951":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.836]],"01-000590":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.32]],"01-000591":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",4.45]],"01-003016":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",6.425]],"01-000641":[["ΖΩΗ ΑΛΑΦΑΚΗ ΚΑΙ ΣΙΑ Ε Ε",5.603]],"01-003530":[["Η ΠΟΙΟΤΗΤΑ ΙΚΕ",16.6]],"01-000771":[["Η ΠΟΙΟΤΗΤΑ ΙΚΕ",11.14]],"01-000376":[["Η ΠΟΙΟΤΗΤΑ ΙΚΕ",229.5]],"02-000581":[["ΜΕΤΡΟ ΑΕΒΕ",0.885],["ΙΒΙΣΚΟΣ ΑΕ",0.902]],"02-001661":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.91],["ΙΒΙΣΚΟΣ ΑΕ",2.168],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.5]],"02-001999":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",2.71],["ΙΒΙΣΚΟΣ ΑΕ",2.88]],"01-003045":[["ΙΒΙΣΚΟΣ ΑΕ",39.96]],"01-005052":[["ΙΒΙΣΚΟΣ ΑΕ",0.343]],"01-004603":[["ΙΒΙΣΚΟΣ ΑΕ",2.077],["ΜΕΤΡΟ ΑΕΒΕ",2.24]],"01-002322":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.31],["ΙΒΙΣΚΟΣ ΑΕ",1.683]],"01-001863":[["ΙΒΙΣΚΟΣ ΑΕ",1.86]],"01-005051":[["ΜΕΤΡΟ ΑΕΒΕ",2.24],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.3],["ΙΒΙΣΚΟΣ ΑΕ",2.403]],"01-001933":[["ΙΒΙΣΚΟΣ ΑΕ",6.09],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",7.657]],"01-001249":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",15.4]],"01-000796":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",7.851]],"01-005169":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",12.301]],"01-000070":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",57.0]],"01-003070":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",57.0]],"01-000867":[["ΚΑΛΟΥΔΗΣ ΝΙΚΟΛΑΟΣ ΜΟΝΟΠΡΟΣΩΠΙΚΗ Ι.Κ.Ε",35.0]],"04-000799":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.35]],"04-001511":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.34]],"04-000041":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.33]],"04-000060":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.33]],"04-001428":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.23]],"04-000861":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.69]],"04-000860":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.16]],"04-000291":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.66]],"04-000865":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.18]],"04-000134":[["ΚΑΠΑ ΣΙΓΜΑ ΔΕΛΤΑ ΑΕ",0.25]],"04-001263":[["ΚΑΡΑΜΑΝΗΣ-ΒΑΡΔΕΛΛΗΣ ΑΕ",16.333]],"02-001580":[["ΚΑΣΕΡΗΣ Π.&ΣΙΑ ΟΕ",1.9]],"01-005057":[["ΚΑΣΕΡΗΣ Π.&ΣΙΑ ΟΕ",6.307]],"02-002325":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.0]],"02-000802":[["ΦΑΝΤΗΣ ΜΟΣΧΟΣ",1.83],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.35]],"01-004961":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.23],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.25]],"01-004962":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.23],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.25]],"01-000101":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.902]],"01-002129":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.038]],"01-004115":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.4]],"01-001302":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.4],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.066]],"01-004967":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.125]],"01-004783":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.5]],"01-005082":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.15]],"01-004998":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.135]],"01-000487":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.145]],"01-005006":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.79]],"01-002467":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",3.43],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.75]],"01-005163":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.65]],"01-004656":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.6]],"01-004639":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.6]],"01-005065":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.55]],"01-002377":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.7]],"01-002098":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.12]],"01-000403":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.13]],"01-005177":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.47]],"01-005083":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.465]],"01-005084":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.486]],"01-002355":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.007],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.079]],"01-005127":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.8]],"01-000117":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.0]],"01-005126":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.8]],"01-005013":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.2],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.78]],"01-004993":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.36],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.5]],"01-003296":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.7]],"01-000858":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.645],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.141]],"01-001149":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.6]],"01-005011":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.37]],"01-003710":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-004952":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-004953":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-004954":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-003681":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.95]],"01-003629":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.95]],"01-002756":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.833],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.098]],"01-000525":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.31]],"01-002182":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.65]],"01-005085":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",2.15]],"01-002772":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.48]],"01-001952":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.327]],"01-000614":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",1.148]],"01-000607":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.132]],"01-004071":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",6.975],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.794],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",8.2]],"01-001677":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",17.21],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",17.8]],"01-005001":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.95]],"01-004960":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.691],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",0.712]],"01-000177":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",19.0]],"01-000254":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.03],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",12.6]],"01-000255":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.89],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",4.8]],"01-000832":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.34],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",5.5]],"01-000283":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.47],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.5]],"01-001467":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.4]],"01-000473":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",10.84],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",17.8]],"01-000474":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.78],["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",13.5]],"01-000108":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",10.1]],"01-001436":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",3.35]],"01-002685":[["ΚΕΦΑΛΑΣ ΑΡΓΥΡΙΟΣ ΚΑΙ ΣΙΑ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",6.6]],"04-000487":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",27.0]],"04-000284":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.005]],"04-000921":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.004]],"04-001514":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.1]],"02-001905":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",16.2]],"02-002011":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.137]],"02-001902":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.137]],"02-001941":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.811]],"02-001023":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.423]],"02-002014":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.964]],"02-001489":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.367]],"02-001480":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.096]],"02-000310":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.113]],"02-000912":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.93]],"02-001062":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",12.75]],"01-005038":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",9.18]],"01-001671":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.5]],"01-000532":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.05]],"01-005129":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.5]],"01-005131":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.0]],"01-005132":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.3]],"01-005130":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.6]],"01-005046":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.35]],"01-005168":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.651]],"01-005101":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.2]],"01-002639":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.64]],"01-005189":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.0]],"01-001655":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.5]],"01-003987":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.3]],"01-001940":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.401]],"01-000982":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",21.408]],"01-000453":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",9.6],["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",10.601]],"01-003485":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.21]],"01-005167":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.44]],"01-004087":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.1]],"01-003776":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.024]],"01-000891":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.557]],"01-003627":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.117]],"01-001926":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.183]],"01-004533":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.248]],"01-003001":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.023]],"01-004571":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.061]],"01-001747":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",15.4]],"01-005066":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.785]],"01-001733":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",5.4],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",11.631]],"01-002265":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.744]],"01-003210":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.13]],"01-002618":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.667]],"01-003853":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.8]],"01-004116":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.36]],"01-001604":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",0.457],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.522]],"01-005180":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.66]],"01-001273":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.66]],"01-005179":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.66]],"01-000338":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.09]],"01-000318":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",2.564]],"01-001428":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.09],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.698]],"01-000308":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.12]],"01-000633":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.34]],"01-000627":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.95]],"01-000624":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.92]],"01-004855":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.0]],"01-003090":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.65]],"01-001884":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.42],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",17.151]],"01-000330":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.06]],"01-002957":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",0.804]],"01-004973":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.335]],"01-001362":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",13.95]],"01-004455":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.426],["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",9.072]],"01-000088":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.4]],"01-003140":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.5]],"01-000781":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.57]],"01-001538":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",16.83]],"01-003365":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",10.46]],"01-000197":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.89]],"01-000198":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.16]],"01-003393":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",18.49]],"01-004090":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.59]],"01-000393":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",17.98]],"01-003033":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.61]],"01-001166":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.64]],"01-000491":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.71]],"01-000993":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.21]],"01-001457":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",8.0]],"01-002791":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",5.5]],"01-004472":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",4.13]],"01-002959":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",3.349],["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",4.3]],"01-000274":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.94]],"01-001775":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",1.264]],"01-005092":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.388]],"01-000237":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",15.328],["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",27.9]],"01-005141":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",7.4]],"01-005140":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.0]],"01-000537":[["ΚΟΖΑΣ ΒΑΣΙΛ.&ΣΙΑ ΟΕ",6.0]],"01-001590":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.804]],"01-000784":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.803]],"01-001594":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.805]],"01-001591":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.803]],"01-000442":[["ΚΟΛΙΟΥ ΝΙΚΟΛΑΟΣ ΤΟΥ ΓΕΩΡΓΙΟΥ",0.809]],"04-000666":[["ΚΡΗΤΙΚΟΣ Π.&ΣΙΑ ΟΕ (ΡΟΔΟΠΑΓ)",1.5]],"02-002350":[["ΚΥΡΙΑΚΟΥΛΗΣ ΕΜΜΑΝΟΥΗΛ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",0.212]],"02-002349":[["ΚΥΡΙΑΚΟΥΛΗΣ ΕΜΜΑΝΟΥΗΛ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",0.115]],"02-002355":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",11.512]],"02-002359":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",2.99]],"02-002354":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",16.483]],"02-002358":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",14.609]],"02-002357":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",12.806]],"02-002356":[["ΜΑΚΕΣΤΑΣ ΓΕΩΡΓΙΟΣ ΑΕ",14.287]],"04-000331":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.056]],"56-000246":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.605]],"56-000426":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",1.37]],"56-000269":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",1.37]],"56-000032":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.645]],"56-000010":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",1.532]],"56-000545":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",1.532]],"56-000126":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.363]],"56-000033":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.726]],"56-000500":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.323]],"56-000234":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.322]],"56-000049":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.806]],"56-000290":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.564]],"56-000029":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",3.145]],"56-000630":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",10.887]],"56-000684":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",12.095]],"56-000480":[["ΟΡΓΑΝΙΣΜΟΣ ΤΗΛΕΠΙΚΟΙΝΩΝΙΩΝ ΤΗΣ ΕΛΛΑΔΟΣ ΑΕ (ΟΤΕ ΑΕ)",2.215],["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",3.468]],"56-000430":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",2.258]],"56-000056":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.202]],"56-000038":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",0.779]],"56-000028":[["ΜΑΚΡΗΣ Γ.ΜΙΧΑΗΛ",1.532]],"02-002201":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",15.8]],"01-005047":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",7.012]],"01-005048":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",0.883]],"01-005062":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",0.174]],"01-001921":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",9.419]],"01-001450":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",9.14]],"01-004819":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",6.638]],"01-002582":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",7.197]],"01-005105":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.603]],"01-005106":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.603]],"01-005219":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.171]],"01-004587":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",5.484]],"01-002824":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",3.03]],"01-002151":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",6.343]],"01-001444":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.499]],"01-002752":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",1.37]],"01-003025":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.587]],"01-002208":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",29.07]],"01-000669":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",8.326]],"01-002304":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",11.64]],"01-000540":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",84.0]],"01-005045":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",7.127]],"01-000044":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",2.9]],"01-000536":[["ΜΑΡΙΝΑΚΗΣ Γ.ΕΜΠΟΡΙΚΗ ΑΕ",6.439]],"01-005192":[["ΜΑΡΚΕΤ ΙΝ ΑΝΩΝΥΜΗ ΕΜΠΟΡΟΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΙΑ ΑΝΑΛΩΣΙΜΩΝ ΠΡΟΙΟΝΤΩΝ ΣΥΣΚΕΥΑΣΙΩΝ ΔΙΑΝΟΜΩΝ ΜΕΤΑΦΟΡΩΝ ΕΙΣΑ",0.171]],"01-005194":[["ΜΑΡΚΕΤ ΙΝ ΑΝΩΝΥΜΗ ΕΜΠΟΡΟΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΙΑ ΑΝΑΛΩΣΙΜΩΝ ΠΡΟΙΟΝΤΩΝ ΣΥΣΚΕΥΑΣΙΩΝ ΔΙΑΝΟΜΩΝ ΜΕΤΑΦΟΡΩΝ ΕΙΣΑ",0.171]],"01-005193":[["ΜΑΡΚΕΤ ΙΝ ΑΝΩΝΥΜΗ ΕΜΠΟΡΟΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΙΑ ΑΝΑΛΩΣΙΜΩΝ ΠΡΟΙΟΝΤΩΝ ΣΥΣΚΕΥΑΣΙΩΝ ΔΙΑΝΟΜΩΝ ΜΕΤΑΦΟΡΩΝ ΕΙΣΑ",0.171]],"01-003616":[["ΜΕΒΓΑΛ ΑΕ",3.164]],"01-001795":[["ΜΕΒΓΑΛ ΑΕ",1.015]],"01-004907":[["ΜΕΛΙΣΣΟΚΟΜΙΚΗ ΔΩΔΕΚΑΝΗΣΟΥ ΑΕΒΕ",0.34]],"01-003752":[["ΜΕΛΙΣΣΟΚΟΜΙΚΗ ΔΩΔΕΚΑΝΗΣΟΥ ΑΕΒΕ",9.479]],"01-005103":[["ΜΕΛΙΣΣΟΚΟΜΙΚΗ ΔΩΔΕΚΑΝΗΣΟΥ ΑΕΒΕ",3.86]],"01-005102":[["ΜΕΛΙΣΣΟΚΟΜΙΚΗ ΔΩΔΕΚΑΝΗΣΟΥ ΑΕΒΕ",0.69]],"05-000002":[["ΜΕΣΟΓΕΙΟΣ ΕΤΑΙΡΕΙΑ ΥΓΡΑΕΡΙΟΥ ΑΕ",0.826]],"05-000003":[["ΜΕΣΟΓΕΙΟΣ ΕΤΑΙΡΕΙΑ ΥΓΡΑΕΡΙΟΥ ΑΕ",0.931]],"04-001498":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",0.12],["ΜΕΤΡΟ ΑΕΒΕ",0.14]],"04-000403":[["ΜΕΤΡΟ ΑΕΒΕ",0.14]],"04-000918":[["ΜΕΤΡΟ ΑΕΒΕ",0.003]],"04-000916":[["ΜΕΤΡΟ ΑΕΒΕ",0.005]],"04-000305":[["ΜΕΤΡΟ ΑΕΒΕ",2.377]],"02-001605":[["ΜΕΤΡΟ ΑΕΒΕ",0.84]],"02-000874":[["ΜΕΤΡΟ ΑΕΒΕ",2.93]],"02-002331":[["ΜΕΤΡΟ ΑΕΒΕ",2.82]],"02-002330":[["ΜΕΤΡΟ ΑΕΒΕ",0.311]],"01-001284":[["ΜΕΤΡΟ ΑΕΒΕ",1.21]],"01-000562":[["ΜΕΤΡΟ ΑΕΒΕ",0.954],["ΠΑΝΗΓΥΡΗΣ ΤΡΟΦΟΔΟΣΙΕΣ ΑΕ",2.062]],"01-002090":[["ΜΕΤΡΟ ΑΕΒΕ",1.27],["ΣΚΛΑΒΕΝΙΤΗΣ ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΑΕΕ",1.424]],"57-001602":[["ΜΕΤΡΟ ΑΕΒΕ",1.99]],"01-002417":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",16.96]],"01-003391":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",17.949]],"01-005100":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",31.498]],"01-005097":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",16.499]],"01-005098":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",18.5]],"01-005112":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",7.08]],"01-005113":[["ΜΗΛΙΟΥΛΗΣ ΑΝΔΡΕΑΣ ΚΑΙ ΣΙΑ ΕΕ",7.08]],"56-000695":[["ΜΟΣΧΑΚΗ  ΜΑΡΙΑ &ΣΙΑ ΟΕ",3.52]],"56-000696":[["ΜΟΣΧΑΚΗ  ΜΑΡΙΑ &ΣΙΑ ΟΕ",1.84]],"56-000697":[["ΜΟΣΧΑΚΗ  ΜΑΡΙΑ &ΣΙΑ ΟΕ",2.64]],"02-001752":[["ΧΑΡΙΤΟΣ Δ.ΠΑΝΤΕΛΗΣ",3.886],["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",4.014]],"02-001753":[["ΧΑΡΙΤΟΣ Δ.ΠΑΝΤΕΛΗΣ",3.947],["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",4.019]],"02-001751":[["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",2.827],["ΧΑΡΙΤΟΣ Δ.ΠΑΝΤΕΛΗΣ",2.839]],"02-002287":[["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",19.8]],"01-005069":[["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",4.85]],"01-005068":[["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",4.85]],"01-005067":[["ΜΠΙΛΛΙΑ ΧΥΜΟΙ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",4.85]],"02-002337":[["ΝΕΣΠΡΕΣΣΟ ΕΛΛΑΣ ΑΕ",0.377]],"02-001685":[["ΝΕΣΠΡΕΣΣΟ ΕΛΛΑΣ ΑΕ",0.356]],"02-000135":[["ΝΕΣΠΡΕΣΣΟ ΕΛΛΑΣ ΑΕ",0.356]],"01-003621":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",19.503]],"01-004839":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",15.0]],"01-004284":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",20.201]],"01-005110":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",50.0]],"01-004879":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",10.0]],"01-002143":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",40.0]],"01-003026":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",18.0]],"01-001374":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",9.5]],"01-001167":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",7.993]],"01-001191":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",32.0]],"01-001998":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",34.465]],"01-003151":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",11.262]],"01-001373":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",9.5]],"01-002444":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",35.365]],"01-005111":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",35.0]],"01-003157":[["ΝΗΣΟΣ ΙΜΙΑ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",115.0]],"01-005292":[["ΟΜΟΡΦΟΣ CATERING ΙΚΕ",8.0]],"01-005187":[["ΠΑΝΗΓΥΡΗΣ ΤΡΟΦΟΔΟΣΙΕΣ ΑΕ",2.1]],"01-005188":[["ΠΑΝΗΓΥΡΗΣ ΤΡΟΦΟΔΟΣΙΕΣ ΑΕ",2.1]],"01-004798":[["ΠΑΝΗΓΥΡΗΣ ΤΡΟΦΟΔΟΣΙΕΣ ΑΕ",12.0]],"04-001104":[["ΠΑΠΑΓΕΩΡΓΙΟΥ ΙΚΕ",19.5]],"04-000805":[["ΠΑΠΑΓΕΩΡΓΙΟΥ ΙΚΕ",42.0]],"04-001213":[["ΠΑΠΑΓΕΩΡΓΙΟΥ ΙΚΕ",0.15]],"04-001147":[["ΠΑΠΑΓΕΩΡΓΙΟΥ ΙΚΕ",0.213]],"01-003811":[["ΠΑΠΑΓΕΩΡΓΙΟΥ ΙΚΕ",7.667]],"04-001497":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",33.304]],"02-001261":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",8.046]],"02-000119":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",9.94]],"01-002280":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",7.264]],"01-005257":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",1.287]],"01-003917":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",1.237]],"01-005258":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",1.219]],"01-001453":[["ΠΑΠΠΟΥ Γ.ΙΩΑΝΝΗΣ ΑΕ",1.008]],"02-002033":[["ΠΥΡΟΠΡΟΣΤΑΣΙΑ ΡΟΔΟΥ ΕΠΕ",100.0]],"01-001197":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",0.39]],"01-005095":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",0.2]],"01-000300":[["ΡΑΜΜΟΣ ΣΠΥΡΟΣ & ΣΙΑ ΕΕ",0.475]],"02-002297":[["ΡΟΔΙΑΚΕΣ ΕΙΣΑΓΩΓΕΣ ΑΕ",2.9]],"02-002296":[["ΡΟΔΙΑΚΕΣ ΕΙΣΑΓΩΓΕΣ ΑΕ",4.2]],"02-002295":[["ΡΟΔΙΑΚΕΣ ΕΙΣΑΓΩΓΕΣ ΑΕ",4.2]],"01-003664":[["ΣΑΒΟΙΔΑΚΗΣ Γ. A.Ε. AΡΤΟΖAΧAΡΟΠ",6.219]],"01-000313":[["ΣΑΒΟΙΔΑΚΗΣ Γ. A.Ε. AΡΤΟΖAΧAΡΟΠ",6.219]],"01-004272":[["ΣΑΒΟΙΔΑΚΗΣ Γ. A.Ε. AΡΤΟΖAΧAΡΟΠ",6.283]],"01-004307":[["ΣΑΒΟΙΔΑΚΗΣ Γ. A.Ε. AΡΤΟΖAΧAΡΟΠ",6.283]],"04-001355":[["ΣΥΝΕΡΓΙΑ ΕΜΠΟΡΙΚΕΣ-ΑΝΑΠΤΥΞΙΑΚΕΣ ΕΠΙΧ/ΣΕΙΣ  ΕΠΕ",33.528]],"02-001331":[["ΣΥΝΕΡΓΙΑ ΕΜΠΟΡΙΚΕΣ-ΑΝΑΠΤΥΞΙΑΚΕΣ ΕΠΙΧ/ΣΕΙΣ  ΕΠΕ",0.348]],"02-001676":[["ΣΥΝΕΡΓΙΑ ΕΜΠΟΡΙΚΕΣ-ΑΝΑΠΤΥΞΙΑΚΕΣ ΕΠΙΧ/ΣΕΙΣ  ΕΠΕ",0.348]],"02-000645":[["ΣΥΝΕΡΓΙΑ ΕΜΠΟΡΙΚΕΣ-ΑΝΑΠΤΥΞΙΑΚΕΣ ΕΠΙΧ/ΣΕΙΣ  ΕΠΕ",0.348]],"02-000314":[["ΣΥΝΕΡΓΙΑ ΕΜΠΟΡΙΚΕΣ-ΑΝΑΠΤΥΞΙΑΚΕΣ ΕΠΙΧ/ΣΕΙΣ  ΕΠΕ",0.41]],"02-002327":[["ΤΑΤΑΚΗΣ Ν.ΑΕ",2.5]],"02-002326":[["ΤΑΤΑΚΗΣ Ν.ΑΕ",2.5]],"02-002328":[["ΤΑΤΑΚΗΣ Ν.ΑΕ",2.5]],"02-001248":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",0.96]],"02-002338":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",0.96]],"02-002339":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",0.96]],"02-000156":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",1.964]],"02-001469":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",0.96]],"02-002340":[["ΤΖΑΝΑΚΟΥΛΗ Κ.ΣΟΦΙΑ",0.96]],"01-005064":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",1.75]],"01-003956":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",1.75]],"01-004641":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",15.8]],"01-001561":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",0.73]],"01-000752":[["ΤΖΩΡΤΖΗΣ ΔΗΜΗΤΡΙΟΣ Μ.ΙΚΕ",30.6]],"01-005175":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",3.751]],"01-001569":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",8.365]],"01-002017":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",0.281]],"01-004841":[["ΤΣΟΥΒΑΛΗΣ ΘΕΜΙΣΤΟΚΛΗΣ &ΣΙΑ ΕΕ",11.9]],"02-000725":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",6.067]],"02-000790":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",15.607]],"02-000488":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",13.04]],"02-002159":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",1.7]],"02-001236":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",15.606]],"02-000116":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",11.07]],"02-000510":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",10.24]],"02-002058":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",1.7]],"02-000014":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",12.42]],"02-002059":[["ΤΥΠΑΛΔΟΣ ΓΕΩΡΓΙΟΣ",1.7]],"04-001118":[["ΥΦΑΝΤΗ ΜΑΡΙΕΤΤΑ-ΑΝΑΣΤΑΣΙΑ",6.773]],"04-000062":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.19]],"04-000674":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.19]],"04-001074":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",2.029]],"04-001513":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.15]],"04-001287":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",4.875]],"04-001487":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.03]],"04-000479":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.03]],"04-000730":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.088]],"04-001035":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",7.8]],"04-000792":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.02]],"04-001072":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.601]],"04-001243":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.065]],"04-001066":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.14]],"04-001460":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.13]],"04-000989":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.64]],"04-000022":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.64]],"04-001264":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.007]],"04-000723":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.014]],"04-001456":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.086]],"04-000575":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.08]],"04-001266":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",3.115]],"04-000663":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",9.5]],"04-001457":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.035]],"04-000577":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.058]],"04-000901":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.98]],"04-000968":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",2.3]],"04-001050":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",2.35]],"04-001462":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.33]],"04-000638":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",5.75]],"04-000954":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",3.15]],"04-000765":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.938]],"04-000714":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",1.938]],"04-001496":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.021]],"01-002912":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.438]],"59-001660":[["ΦΕΣΑΚΗΣ CLEANING SYSTEMS IKE",0.98]],"02-001245":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",25.0]],"02-001656":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",15.0]],"02-002280":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",26.0]],"02-001424":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",23.005]],"02-002277":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.062]],"02-002288":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.055]],"02-002269":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.062]],"02-002267":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.03]],"01-004905":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.073]],"02-002298":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.062]],"02-002268":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.061]],"02-002278":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",0.062]],"01-002812":[["ΧΑΡΙΤΟΣ Δ.& ΣΙΑ Ο.Ε.",7.25]],"02-002279":[["ΧΑΡΙΤΟΣ Δ.ΠΑΝΤΕΛΗΣ",4.038]]};
+
+const SUPABASE_URL = "https://vajzvdeuwwpwkxjtzqic.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_bEIylS_8-DI53CN8xy-EDg_JcPLaaxv";
+// ===================================================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const N_ROWS = 30;
+const BIG = 999999999;
+let currentUser = null;
+let productCache = [];
+let suppressRemoteEcho = false;
+let saveTimer = null;
+let orderLocked = false;
+let currentHistoryId = null;
+let currentOrderId = null; // id της τρέχουσας live_order
+
+// ---------------- LOGIN ----------------
+async function loadStaffList(){
+  const { data, error } = await sb.from("staff").select("name").order("name");
+  const sel = document.getElementById("loginName");
+  if(!error && data){
+    data.forEach(s=>{
+      const opt = document.createElement("option");
+      opt.value = s.name; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+let currentUserIsAdmin = false;
+
+async function attemptLogin(){
+  const name = document.getElementById("loginName").value;
+  const pin = document.getElementById("loginPin").value.trim();
+  const errEl = document.getElementById("loginError");
+  if(!name || !pin){ errEl.textContent = "Επίλεξε όνομα και γράψε PIN."; return; }
+  const { data, error } = await sb.from("staff").select("name,pin,is_admin").eq("name", name).single();
+  if(error || !data || data.pin !== pin){ errEl.textContent = "Λάθος PIN."; return; }
+  currentUser = name;
+  currentUserIsAdmin = !!data.is_admin;
+  document.getElementById("loginScreen").style.display = "none";
+  showPickerScreen();
+}
+
+let debugOn = false;
+function toggleDebug(){
+  debugOn = !debugOn;
+  document.getElementById("debugPanel").style.display = debugOn ? "block" : "none";
+  if(debugOn) renderDebug();
+}
+function renderDebug(){
+  if(!debugOn) return;
+  const panel = document.getElementById("debugPanel");
+  let lines = ["=== DEBUG (ζωντανό) ==="];
+  getRows().forEach((tr, i)=>{
+    const code = tr.querySelector('[data-f="code"]').value;
+    const qty = tr.querySelector('[data-f="qty"]').value;
+    const p1 = tr.querySelector('[data-f="p1"]').value;
+    const p2 = tr.querySelector('[data-f="p2"]').value;
+    const p3 = tr.querySelector('[data-f="p3"]').value;
+    if(!code && !qty && !p1 && !p2 && !p3) return;
+    lines.push(`Γραμμή ${i+1}: code="${code}" vat-dataset="${tr.dataset.vat}" (parsed=${parseFloat(tr.dataset.vat)})`);
+    lines.push(`  qty="${qty}" (parsed=${parseNum(qty)})  p1="${p1}" (parsed=${parseNum(p1)})  p2="${p2}" (parsed=${parseNum(p2)})  p3="${p3}" (parsed=${parseNum(p3)})`);
+  });
+  if(lines.length===1) lines.push("(καμία γραμμή έχει δεδομένα ακόμα)");
+  panel.textContent = lines.join("\n");
+}
+
+function logout(){
+  if(!confirm("Αποσύνδεση; Θα χρειαστεί να ξαναβάλεις το PIN σου την επόμενη φορά.")) return;
+  localStorage.removeItem("order_app_user");
+  localStorage.removeItem("order_app_admin");
+  location.reload();
+}
+
+function checkExistingSession(){
+  localStorage.removeItem("order_app_user");
+  localStorage.removeItem("order_app_admin");
+  loadStaffList();
+}
+
+// ---------------- BUILD TABLE ----------------
+const tbody = document.getElementById("itemsBody");
+function buildRows(){
+  let html = "";
+  for(let i=1;i<=N_ROWS;i++){
+    html += `<tr data-row="${i}">
+      <td class="idx">${i}</td>
+      <td class="code" style="position:relative;"><input type="text" data-f="code" autocomplete="off" name="code_${i}"><div class="autocomplete-box" data-box="code" style="display:none;"></div></td>
+      <td class="desc" style="position:relative;"><input type="text" data-f="desc" autocomplete="off" name="desc_${i}"><div class="autocomplete-box" data-box="desc" style="display:none;"></div></td>
+      <td class="unit auto" data-f="unit"></td>
+      <td class="qty-cell"><input type="text" inputmode="decimal" data-f="qty" autocomplete="off" name="qty_${i}"></td>
+      <td class="price"><input type="text" inputmode="decimal" data-f="p1" autocomplete="off" name="p1_${i}"></td>
+      <td class="price"><input type="text" inputmode="decimal" data-f="p2" autocomplete="off" name="p2_${i}"></td>
+      <td class="price"><input type="text" inputmode="decimal" data-f="p3" autocomplete="off" name="p3_${i}"></td>
+      <td class="price"><input type="text" inputmode="decimal" data-f="p4" autocomplete="off" name="p4_${i}"></td>
+      <td class="price"><input type="text" inputmode="decimal" data-f="p5" autocomplete="off" name="p5_${i}"></td>
+      <td class="auto" data-f="vat">—</td>
+      <td class="readonly" data-f="net">0.00</td>
+      <td class="readonly" data-f="gross">0.00</td>
+      <td class="notes"><input type="text" data-f="notes" autocomplete="off" name="notes_${i}"></td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+
+  // Διπλό κλικ σε οποιοδήποτε κελί τιμής → toggle deselect
+  tbody.addEventListener("dblclick", e=>{
+    const td = e.target.closest("td.price");
+    if(!td) return;
+    const input = td.querySelector("input");
+    if(!input || !input.value.trim()) return;
+    td.classList.toggle("deselected");
+    recalc(); scheduleSave();
+  });
+}
+buildRows();
+
+function fmt(n){ return (isFinite(n)?n:0).toLocaleString("el-GR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function parseNum(v){
+  if(v===null || v===undefined) return NaN;
+  const s = String(v).trim().replace(",", ".");
+  if(s === "") return NaN;
+  return parseFloat(s);
+}
+function getRows(){ return Array.from(tbody.querySelectorAll("tr")); }
+
+// ---------------- PRODUCT AUTOCOMPLETE ----------------
+async function loadProducts(){
+  let all = [];
+  let from = 0;
+  const pageSize = 1000;
+  while(true){
+    const { data, error } = await sb.from("products").select("code,description,unit,vat").range(from, from+pageSize-1);
+    if(error || !data || data.length===0) break;
+    all = all.concat(data);
+    if(data.length < pageSize) break;
+    from += pageSize;
+  }
+  productCache = all;
+}
+
+function findByCode(code){
+  return productCache.find(p => p.code === code);
+}
+
+function attachAutocomplete(tr){
+  const codeInput = tr.querySelector('[data-f="code"]');
+  const descInput = tr.querySelector('[data-f="desc"]');
+  const codeBox = tr.querySelector('.autocomplete-box[data-box="code"]');
+  const descBox = tr.querySelector('.autocomplete-box[data-box="desc"]');
+
+  function applyProduct(p){
+    codeInput.value = p.code;
+    descInput.value = p.description || "";
+    tr.querySelector('[data-f="unit"]').textContent = p.unit || "";
+    const hasVat = (p.vat!==null && p.vat!==undefined);
+    tr.dataset.vat = hasVat ? p.vat : "";
+    tr.querySelector('[data-f="vat"]').textContent = hasVat ? Math.round(p.vat*100)+"%" : "—";
+    codeBox.style.display = "none";
+    descBox.style.display = "none";
+    tr.querySelector('.code').style.outline = "none";
+    tr.querySelector('.desc').style.outline = "none";
+
+    // Αυτόματη συμπλήρωση τιμών από ιστορικό αγορών
+    if(typeof SUPPLIER_PRICES !== 'undefined' && SUPPLIER_PRICES[p.code]){
+      const entries = SUPPLIER_PRICES[p.code]; // [{name, price}, ...] max 3 φθηνότεροι
+      const currentSups = [1,2,3,4,5].map(n=> document.getElementById("sup"+n).value.trim());
+      const defaults = [1,2,3,4,5].map(n=>`ΠΡΟΜΗΘΕΥΤΗΣ ${n}`);
+      const allDefault = currentSups.every((s,i)=> s===defaults[i] || s==="");
+
+      if(allDefault){
+        // Αν δεν έχουν οριστεί προμηθευτές → βάλε τους 5 φθηνότερους αυτόματα
+        entries.forEach((entry, i)=>{
+          if(i>=3) return;
+          document.getElementById("sup"+(i+1)).value = entry[0];
+          const pEl = tr.querySelector(`[data-f="p${i+1}"]`);
+          if(pEl){ pEl.value = entry[1]; pEl.closest("td").classList.remove("deselected"); }
+        });
+        // Καθάρισε τα υπόλοιπα κελιά τιμής
+        for(let i=Math.min(entries.length,3)+1; i<=5; i++){
+          const pEl = tr.querySelector(`[data-f="p${i}"]`);
+          if(pEl){ pEl.value = ""; pEl.closest("td").classList.remove("deselected"); }
+        }
+      } else {
+        // Αν έχουν ήδη οριστεί προμηθευτές → αντιστοίχισε τιμές βάσει ονόματος
+        const priceMap = {};
+        entries.forEach(e=> priceMap[e[0].toLowerCase()] = e[1]);
+        [1,2,3,4,5].forEach(n=>{
+          const supName = document.getElementById("sup"+n).value.trim().toLowerCase();
+          const pEl = tr.querySelector(`[data-f="p${n}"]`);
+          if(!pEl) return;
+          const match = priceMap[supName];
+          if(match !== undefined){
+            pEl.value = match;
+            pEl.closest("td").classList.remove("deselected");
+          } else {
+            pEl.value = "";
+            pEl.closest("td").classList.remove("deselected");
+          }
+        });
+      }
+    }
+
+    recalc(); scheduleSave();
+  }
+
+  function clearLookup(){
+    tr.querySelector('[data-f="unit"]').textContent = "";
+    tr.querySelector('[data-f="vat"]').textContent = "—";
+    tr.dataset.vat = "";
+  }
+
+  let highlightedIdx = -1;
+
+  function showMatches(box, query, matches){
+    highlightedIdx = -1;
+    if(matches.length===0){
+      box.style.display = "none";
+      return;
+    }
+    box.innerHTML = matches.map(p=>`<div data-code="${p.code}"><span class="ac-code">${p.code}</span> — ${p.description}</div>`).join("");
+    box.style.display = "block";
+    box.querySelectorAll("div").forEach(div=>{
+      div.addEventListener("mousedown", (e)=>{
+        e.preventDefault();
+        const p = findByCode(div.dataset.code);
+        if(p) applyProduct(p);
+      });
+    });
+  }
+
+  function setHighlight(box, idx){
+    const items = box.querySelectorAll("div");
+    items.forEach(d=>d.style.background = "");
+    if(idx>=0 && idx<items.length){
+      items[idx].style.background = "var(--light-blue)";
+      if(items[idx].scrollIntoView) items[idx].scrollIntoView({block:"nearest"});
+    }
+  }
+
+  function handleDropdownKeys(e, box){
+    if(box.style.display !== "block") return false;
+    const items = box.querySelectorAll("div");
+    if(items.length===0) return false;
+    if(e.key === "ArrowDown"){
+      highlightedIdx = Math.min(highlightedIdx+1, items.length-1);
+      setHighlight(box, highlightedIdx);
+      e.preventDefault(); e.stopImmediatePropagation();
+      return true;
+    }
+    if(e.key === "ArrowUp"){
+      highlightedIdx = Math.max(highlightedIdx-1, 0);
+      setHighlight(box, highlightedIdx);
+      e.preventDefault(); e.stopImmediatePropagation();
+      return true;
+    }
+    if(e.key === "Enter"){
+      const idx = highlightedIdx>=0 ? highlightedIdx : 0;
+      const div = items[idx];
+      if(div){
+        const p = findByCode(div.dataset.code);
+        if(p) applyProduct(p);
+      }
+      e.preventDefault(); e.stopImmediatePropagation();
+      return true;
+    }
+    if(e.key === "Escape"){
+      box.style.display = "none";
+      e.stopImmediatePropagation();
+      return true;
+    }
+    return false;
+  }
+
+  codeInput.addEventListener("keydown", e=> handleDropdownKeys(e, codeBox));
+  descInput.addEventListener("keydown", e=> handleDropdownKeys(e, descBox));
+
+  function search(query){
+    if(query.length < 2) return [];
+    const q = query.toLowerCase();
+    return productCache.filter(p =>
+      p.code.toLowerCase().includes(q) || (p.description||"").toLowerCase().includes(q)
+    ).slice(0, 20);
+  }
+
+  codeInput.addEventListener("input", ()=>{
+    const v = codeInput.value.trim();
+    descBox.style.display = "none";
+    if(v.length < 2){ codeBox.style.display="none"; clearLookup(); return; }
+
+    // Ειδικός κωδικός 00-000000: κενό προϊόν για ελεύθερη περιγραφή
+    if(v === "00-000000"){
+      codeBox.style.display = "none";
+      descInput.value = "";
+      descInput.placeholder = "Γράψε περιγραφή...";
+      descInput.focus();
+      tr.querySelector('[data-f="unit"]').textContent = "";
+      tr.querySelector('[data-f="vat"]').textContent = "—";
+      tr.dataset.vat = "";
+      tr.querySelector('.code').style.outline = "none";
+      tr.querySelector('.desc').style.outline = "none";
+      recalc(); scheduleSave();
+      return;
+    }
+
+    const exact = findByCode(v);
+    if(exact){ applyProduct(exact); return; }
+    clearLookup();
+    showMatches(codeBox, v, search(v));
+  });
+
+  descInput.addEventListener("input", ()=>{
+    const v = descInput.value.trim();
+    codeBox.style.display = "none";
+    if(v.length < 2){ descBox.style.display="none"; clearLookup(); updateUnresolvedStyle(); return; }
+    const exactDesc = productCache.find(p => (p.description||"").toLowerCase() === v.toLowerCase());
+    if(exactDesc){ applyProduct(exactDesc); return; }
+    clearLookup();
+    showMatches(descBox, v, search(v));
+    updateUnresolvedStyle();
+  });
+
+  function updateUnresolvedStyle(){
+    const hasText = codeInput.value.trim().length>0 || descInput.value.trim().length>0;
+    const resolved = tr.dataset.vat !== "" && tr.dataset.vat !== undefined;
+    const warn = hasText && !resolved;
+    tr.querySelector('.code').style.outline = warn ? "2px solid #e6a700" : "none";
+    tr.querySelector('.desc').style.outline = warn ? "2px solid #e6a700" : "none";
+  }
+
+  codeInput.addEventListener("blur", ()=> setTimeout(()=>{ codeBox.style.display="none"; updateUnresolvedStyle(); }, 150));
+  descInput.addEventListener("blur", ()=> setTimeout(()=>{ descBox.style.display="none"; updateUnresolvedStyle(); }, 150));
+}
+
+// ---------------- CALCULATIONS ----------------
+function recalc(){
+  const sup1 = document.getElementById("sup1").value || "ΠΡΟΜΗΘΕΥΤΗΣ 1";
+  const sup2 = document.getElementById("sup2").value || "ΠΡΟΜΗΘΕΥΤΗΣ 2";
+  const sup3 = document.getElementById("sup3").value || "ΠΡΟΜΗΘΕΥΤΗΣ 3";
+  const sup4 = document.getElementById("sup4").value || "ΠΡΟΜΗΘΕΥΤΗΣ 4";
+  const sup5 = document.getElementById("sup5").value || "ΠΡΟΜΗΘΕΥΤΗΣ 5";
+  [1,2,3,4,5].forEach(n=>{
+    const s = [null,sup1,sup2,sup3,sup4,sup5][n];
+    document.getElementById("th_sup"+n).textContent = s;
+    document.getElementById("tot_sup"+n).textContent = s;
+  });
+
+  let netBySupplier=[0,0,0,0,0], grossBySupplier=[0,0,0,0,0];
+  let grandNet=0, grandGross=0;
+
+  getRows().forEach(tr=>{
+    const qtyEl = tr.querySelector('[data-f="qty"]');
+    const pEls = [1,2,3,4,5].map(n=> tr.querySelector(`[data-f="p${n}"]`));
+    const netCell = tr.querySelector('[data-f="net"]');
+    const grossCell = tr.querySelector('[data-f="gross"]');
+    const vat = parseFloat(tr.dataset.vat);
+    const qty = parseNum(qtyEl.value);
+
+    pEls.forEach(el=>{
+      const td = el.closest("td");
+      td.classList.remove("cheapest");
+      // Αφαίρεση deselected αν το κελί δεν έχει τιμή
+      if(!el.value.trim()) td.classList.remove("deselected");
+    });
+
+    // Εξαιρούμε τιμές σε κελιά που ο χρήστης έχει αποεπιλέξει χειροκίνητα
+    const prices = pEls.map(el=>{
+      if(el.closest("td").classList.contains("deselected")) return null;
+      const v=parseNum(el.value); return isNaN(v)?null:v;
+    });
+    const validPrices = prices.filter(p=>p!==null);
+    if(!isNaN(qty) && validPrices.length>0 && !isNaN(vat)){
+      const minPrice = Math.min(...validPrices);
+      const net = qty*minPrice;
+      const gross = net*(1+vat);
+      netCell.textContent = fmt(net);
+      grossCell.textContent = fmt(gross);
+      grandNet += net; grandGross += gross;
+
+      prices.forEach((p,idx)=>{
+        if(p!==null){
+          const others = prices.map((p2,idx2)=> idx2===idx?Infinity:(p2===null?Infinity:p2));
+          if(p<=Math.min(...others)){
+            pEls[idx].closest("td").classList.add("cheapest");
+            netBySupplier[idx]+=net; grossBySupplier[idx]+=gross;
+          }
+        }
+      });
+    } else {
+      netCell.textContent = "0.00"; grossCell.textContent = "0.00";
+    }
+  });
+
+  [0,1,2,3,4].forEach(idx=>{
+    document.getElementById("net"+(idx+1)).textContent = fmt(netBySupplier[idx]);
+    document.getElementById("vat"+(idx+1)).textContent = fmt(grossBySupplier[idx]-netBySupplier[idx]);
+    document.getElementById("gross"+(idx+1)).textContent = fmt(grossBySupplier[idx]);
+  });
+  document.getElementById("netCombo").textContent = fmt(grandNet);
+  document.getElementById("vatCombo").textContent = fmt(grandGross-grandNet);
+  document.getElementById("grossCombo").textContent = fmt(grandGross);
+
+  const minGross = Math.min(...grossBySupplier);
+  const names=[sup1,sup2,sup3,sup4,sup5];
+  [1,2,3,4,5].forEach(n=> document.getElementById("gross"+n).classList.toggle("cheapest", grossBySupplier[n-1]===minGross && minGross>0));
+  document.getElementById("bestSupplier").textContent = minGross>0 ? names[grossBySupplier.indexOf(minGross)] : "—";
+
+  document.getElementById("grandNet").textContent = fmt(grandNet)+" €";
+  document.getElementById("grandVat").textContent = fmt(grandGross-grandNet)+" €";
+  document.getElementById("grandTotal").textContent = fmt(grandGross)+" €";
+}
+
+// ---------------- DATA COLLECTION / APPLY ----------------
+function collectData(){
+  const rows = getRows().map(tr=>{
+    const get = f => tr.querySelector(`[data-f="${f}"]`)?.value ?? tr.querySelector(`[data-f="${f}"]`)?.textContent ?? "";
+    return {
+      code: tr.querySelector('[data-f="code"]').value,
+      desc: tr.querySelector('[data-f="desc"]').value,
+      unit: tr.querySelector('[data-f="unit"]').textContent,
+      vat: tr.dataset.vat || "",
+      qty: get("qty"), p1: get("p1"), p2: get("p2"), p3: get("p3"), p4: get("p4"), p5: get("p5"), notes: get("notes"),
+      deselected: [1,2,3,4,5].map(n=> tr.querySelector(`[data-f="p${n}"]`)?.closest("td").classList.contains("deselected")||false)
+    };
+  });
+  return {
+    date: document.getElementById("f_date").value,
+    dept: document.getElementById("f_dept").value,
+    category: document.getElementById("f_category").value,
+    orderno: document.getElementById("f_orderno").value,
+    receipt: document.getElementById("f_receipt").value,
+    sup1: document.getElementById("sup1").value,
+    sup2: document.getElementById("sup2").value,
+    sup3: document.getElementById("sup3").value,
+    sup4: document.getElementById("sup4").value,
+    sup5: document.getElementById("sup5").value,
+    locked: orderLocked,
+    rows
+  };
+}
+
+function applyData(data){
+  if(!data) return;
+  document.getElementById("f_date").value = data.date||"";
+  document.getElementById("f_dept").value = data.dept||"";
+  document.getElementById("f_category").value = data.category||"";
+  document.getElementById("f_orderno").value = data.orderno||"";
+  document.getElementById("f_receipt").value = data.receipt||"";
+  document.getElementById("sup1").value = data.sup1||"ΠΡΟΜΗΘΕΥΤΗΣ 1";
+  document.getElementById("sup2").value = data.sup2||"ΠΡΟΜΗΘΕΥΤΗΣ 2";
+  document.getElementById("sup3").value = data.sup3||"ΠΡΟΜΗΘΕΥΤΗΣ 3";
+  document.getElementById("sup4").value = data.sup4||"ΠΡΟΜΗΘΕΥΤΗΣ 4";
+  document.getElementById("sup5").value = data.sup5||"ΠΡΟΜΗΘΕΥΤΗΣ 5";
+  const rows = getRows();
+  // Καθαρίζουμε ΠΡΩΤΑ όλες τις γραμμές, ώστε να μην απομένουν "ξεχασμένα" δεδομένα
+  // από προηγούμενη παραγγελία όταν ανοίγουμε διαφορετική.
+  rows.forEach(tr=>{
+    tr.querySelector('[data-f="code"]').value = "";
+    tr.querySelector('[data-f="desc"]').value = "";
+    tr.querySelector('[data-f="unit"]').textContent = "";
+    tr.dataset.vat = "";
+    tr.querySelector('[data-f="vat"]').textContent = "—";
+    tr.querySelector('[data-f="qty"]').value = "";
+    [1,2,3,4,5,6].forEach(n=>{const el=tr.querySelector('[data-f="p'+n+'"]'); if(el) el.value="";});
+    tr.querySelector('[data-f="notes"]').value = "";
+  });
+  (data.rows||[]).forEach((rd,i)=>{
+    if(!rows[i]) return;
+    const tr = rows[i];
+    tr.querySelector('[data-f="code"]').value = rd.code||"";
+    tr.querySelector('[data-f="desc"]').value = rd.desc||"";
+    tr.querySelector('[data-f="unit"]').textContent = rd.unit||"";
+    tr.dataset.vat = rd.vat || "";
+    tr.querySelector('[data-f="vat"]').textContent = (rd.vat!==undefined && rd.vat!=="") ? Math.round(rd.vat*100)+"%" : "—";
+    const set=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=v||""; };
+    set("qty",rd.qty); set("p1",rd.p1); set("p2",rd.p2); set("p3",rd.p3); set("p4",rd.p4); set("p5",rd.p5); set("notes",rd.notes);
+    if(rd.deselected) rd.deselected.forEach((d,i)=>{
+      const el = tr.querySelector(`[data-f="p${i+1}"]`);
+      if(el) el.closest("td").classList.toggle("deselected", !!d);
+    });
+  });
+  orderLocked = !!data.locked;
+  updateLockUI();
+  recalc();
+}
+
+// ---------------- PICKER SCREEN ----------------
+async function showPickerScreen(){
+  document.getElementById("pickerScreen").style.display = "block";
+  document.getElementById("appRoot").style.display = "none";
+  document.getElementById("pickerWho").textContent = "👤 " + currentUser + (currentUserIsAdmin ? " (admin)" : "");
+  await loadPickerOrders();
+}
+
+async function deleteActiveOrder(id, orderNo){
+  if(!confirm(`Διαγραφή ενεργής παραγγελίας ${orderNo||""}; Τα δεδομένα θα χαθούν οριστικά.`)) return;
+  try{ await sb.from("live_orders").delete().eq("id", id); }
+  catch(e){ alert("Σφάλμα διαγραφής: " + e.message); return; }
+  await loadPickerOrders();
+}
+
+async function loadPickerOrders(){
+  const listEl = document.getElementById("pickerList");
+  listEl.innerHTML = `<p style="padding:12px; font-size:12px; color:#999;">Φόρτωση...</p>`;
+  const { data, error } = await sb.from("live_orders").select("*").order("created_at", {ascending:false});
+  if(error || !data || data.length===0){
+    listEl.innerHTML = `<p style="padding:12px; font-size:12px; color:#999;">Δεν υπάρχουν ενεργές παραγγελίες.</p>`;
+    return;
+  }
+  listEl.innerHTML = data.map(o=>{
+    const items = (o.data&&o.data.rows ? o.data.rows.filter(r=>r.code||r.desc).length : 0);
+    const mine = o.started_by === currentUser;
+    return `<div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid #eee; font-size:13px; background:${mine?"#f0f8f0":"#fff"}">
+      <span style="font-weight:700; color:var(--navy); width:90px;">${o.order_number||"—"}</span>
+      <span style="width:130px;">${o.department||"—"}</span>
+      <span style="flex:1; color:#777;">${items} είδη · ${o.started_by||""}</span>
+      <button class="btn-primary" style="padding:5px 12px; font-size:11px;" onclick="openOrder('${o.id}')">Άνοιγμα</button>
+      <button class="btn-danger" style="padding:5px 10px; font-size:11px;" onclick="deleteActiveOrder('${o.id}','${o.order_number||''}')">Διαγραφή</button>
+    </div>`;
+  }).join("");
+}
+
+async function startNewOrder(){
+  const { data:noData } = await sb.rpc("get_next_order_number");
+  const { data, error } = await sb.from("live_orders").insert({
+    order_number: noData || null,
+    started_by: currentUser,
+    data: { orderno: noData||"", rows:[], sup1:"ΠΡΟΜΗΘΕΥΤΗΣ 1", sup2:"ΠΡΟΜΗΘΕΥΤΗΣ 2", sup3:"ΠΡΟΜΗΘΕΥΤΗΣ 3", sup4:"ΠΡΟΜΗΘΕΥΤΗΣ 4", sup5:"ΠΡΟΜΗΘΕΥΤΗΣ 5" }
+  }).select().single();
+  if(error || !data){ alert("Σφάλμα δημιουργίας παραγγελίας."); return; }
+  await openOrder(data.id);
+}
+
+async function openOrder(id){
+  currentOrderId = id;
+  currentHistoryId = null;
+  document.getElementById("pickerScreen").style.display = "none";
+  document.getElementById("historyEditBanner").style.display = "none";
+  document.getElementById("appRoot").style.display = "block";
+  document.getElementById("adminBtn").style.display = currentUserIsAdmin ? "inline-block" : "none";
+  document.getElementById("whoLabel").textContent = "Συνδεδεμένος: " + currentUser + (currentUserIsAdmin ? " (admin)" : "");
+  await initApp();
+}
+
+function backToList(){
+  unsubscribeRealtime();
+  currentOrderId = null;
+  document.getElementById("appRoot").style.display = "none";
+  showPickerScreen();
+}
+
+// ---------------- SUPABASE SYNC (ανά live_order) ----------------
+let realtimeChannel = null;
+
+// ---------------- ΑΝΑΙΡΕΣΗ (UNDO) ----------------
+const MAX_UNDO = 10;
+function saveUndoSnapshot(){
+  try{
+    const data = collectData();
+    const key = "undo_" + (currentOrderId||"shared");
+    let stack = JSON.parse(localStorage.getItem(key)||"[]");
+    // Αν η τελευταία κατάσταση είναι ίδια, μην αποθηκεύεις
+    if(stack.length>0 && JSON.stringify(stack[stack.length-1])===JSON.stringify(data)) return;
+    stack.push(data);
+    if(stack.length > MAX_UNDO) stack.shift();
+    localStorage.setItem(key, JSON.stringify(stack));
+    updateUndoBtn();
+  }catch(e){}
+}
+function undoLastChange(){
+  try{
+    const key = "undo_" + (currentOrderId||"shared");
+    let stack = JSON.parse(localStorage.getItem(key)||"[]");
+    if(stack.length < 2){ alert("Δεν υπάρχει προηγούμενη κατάσταση για αναίρεση."); return; }
+    stack.pop(); // αφαίρεσε την τρέχουσα
+    const prev = stack[stack.length-1];
+    localStorage.setItem(key, JSON.stringify(stack));
+    applyData(prev);
+    scheduleSave();
+    updateUndoBtn();
+  }catch(e){ alert("Σφάλμα αναίρεσης."); }
+}
+function clearUndoStack(){
+  try{ localStorage.removeItem("undo_"+(currentOrderId||"shared")); }catch(e){}
+  updateUndoBtn();
+}
+function updateUndoBtn(){
+  const btn = document.getElementById("undoBtn");
+  if(!btn) return;
+  try{
+    const key = "undo_" + (currentOrderId||"shared");
+    const stack = JSON.parse(localStorage.getItem(key)||"[]");
+    btn.disabled = stack.length < 2;
+    btn.style.opacity = stack.length < 2 ? "0.4" : "1";
+  }catch(e){}
+}
+
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  document.getElementById("syncStatus").textContent = " • αποθήκευση...";
+  saveUndoSnapshot();
+  saveTimer = setTimeout(saveToSupabase, 700);
+}
+
+async function saveToSupabase(){
+  suppressRemoteEcho = true;
+  const data = collectData();
+  if(currentHistoryId){
+    const { error } = await sb.from("order_history").update({
+      data, saved_by: currentUser, saved_at: new Date().toISOString()
+    }).eq("id", currentHistoryId);
+    document.getElementById("syncStatus").textContent = error ? " • σφάλμα: "+error.message : " • αποθηκεύτηκε";
+  } else if(currentOrderId){
+    const { error } = await sb.from("live_orders").update({
+      data, department: data.dept||null, order_number: data.orderno||null,
+      updated_at: new Date().toISOString(), updated_by: currentUser
+    }).eq("id", currentOrderId);
+    document.getElementById("syncStatus").textContent = error ? " • σφάλμα αποθήκευσης" : " • ενημερώθηκε";
+  }
+  setTimeout(()=>{ suppressRemoteEcho = false; }, 500);
+}
+
+async function loadFromSupabase(){
+  if(!currentOrderId) return;
+  const { data, error } = await sb.from("live_orders").select("data").eq("id", currentOrderId).single();
+  if(!error && data && data.data) applyData(data.data);
+}
+
+function subscribeRealtime(){
+  if(!currentOrderId) return;
+  if(realtimeChannel){ try{ sb.removeChannel(realtimeChannel); }catch(e){} }
+  realtimeChannel = sb.channel("order_"+currentOrderId)
+    .on("postgres_changes", { event:"UPDATE", schema:"public", table:"live_orders", filter:"id=eq."+currentOrderId }, payload=>{
+      if(suppressRemoteEcho) return;
+      applyData(payload.new.data);
+      document.getElementById("syncStatus").textContent = " • ενημερώθηκε από "+(payload.new.updated_by||"άλλο άτομο");
+    }).subscribe();
+}
+
+function unsubscribeRealtime(){
+  if(realtimeChannel){ try{ sb.removeChannel(realtimeChannel); }catch(e){} realtimeChannel = null; }
+}
+
+// ---------------- SMART PRINT (A4 αν αρκεί, αλλιώς A3) ----------------
+// ---------------- ΕΞΑΓΩΓΗ ΣΕ EXCEL ----------------
+async function exportToExcel(){
+  const sup1 = document.getElementById("sup1").value || "ΠΡΟΜΗΘΕΥΤΗΣ 1";
+  const sup2 = document.getElementById("sup2").value || "ΠΡΟΜΗΘΕΥΤΗΣ 2";
+  const sup3 = document.getElementById("sup3").value || "ΠΡΟΜΗΘΕΥΤΗΣ 3";
+  const sup4 = document.getElementById("sup4").value || "ΠΡΟΜΗΘΕΥΤΗΣ 4";
+  const sup5 = document.getElementById("sup5").value || "ΠΡΟΜΗΘΕΥΤΗΣ 5";
+
+  const NAVY = "FF1F3864", WHITE = "FFFFFFFF", GOLD = "FFFFF2CC", LIGHT_BLUE = "FFD9E2F3", SOFT_GREEN = "FFC6EFCE", GREY = "FFF2F2F2";
+  const fillSolid = (argb)=> ({ type:"pattern", pattern:"solid", fgColor:{argb} });
+  const thinBorder = { style:"thin", color:{argb:"FFB0B0B0"} };
+  const allBorders = { top:thinBorder, bottom:thinBorder, left:thinBorder, right:thinBorder };
+  const center = { horizontal:"center", vertical:"middle" };
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("ΠΑΡΑΓΓΕΛΙΑ");
+  ws.columns = [
+    {width:5},{width:14},{width:34},{width:8},{width:10},
+    {width:13},{width:13},{width:13},{width:13},{width:13},{width:8},{width:14},{width:15},{width:22}
+  ];
+
+  let r = 1;
+  ws.mergeCells(`A${r}:L${r}`);
+  ws.getCell(`A${r}`).value = "RODOS PALACE HOTEL";
+  ws.getCell(`A${r}`).fill = fillSolid(NAVY);
+  ws.getCell(`A${r}`).font = { color:{argb:WHITE}, bold:true, size:14 };
+  ws.getCell(`A${r}`).alignment = center;
+  r++;
+
+  ws.mergeCells(`A${r}:L${r}`);
+  ws.getCell(`A${r}`).value = "ΕΝΤΥΠΟ ΠΑΡΑΓΓΕΛΙΑΣ ΤΡΟΦΙΜΩΝ & ΠΟΤΩΝ – ΣΥΓΚΡΙΣΗ ΠΡΟΜΗΘΕΥΤΩΝ";
+  ws.getCell(`A${r}`).fill = fillSolid(NAVY);
+  ws.getCell(`A${r}`).font = { color:{argb:WHITE}, bold:true };
+  ws.getCell(`A${r}`).alignment = center;
+  r += 2;
+
+  function infoCell(label, labelCell, value, valueCell){
+    ws.getCell(labelCell).value = label;
+    ws.getCell(labelCell).font = { bold:true, color:{argb:NAVY} };
+    ws.getCell(valueCell).value = value;
+    ws.getCell(valueCell).fill = fillSolid(LIGHT_BLUE);
+    ws.getCell(valueCell).border = allBorders;
+  }
+  infoCell("ΗΜΕΡΟΜΗΝΙΑ", `A${r}`, document.getElementById("f_date").value, `B${r}`);
+  infoCell("ΤΜΗΜΑ", `D${r}`, document.getElementById("f_dept").value, `E${r}`);
+  r++;
+  infoCell("ΑΡ. ΠΑΡΑΓΓΕΛΙΑΣ", `A${r}`, document.getElementById("f_orderno").value, `B${r}`);
+  infoCell("ΗΜ/ΝΙΑ ΠΑΡΑΛΑΒΗΣ", `D${r}`, document.getElementById("f_receipt").value, `E${r}`);
+  r++;
+  infoCell("ΚΑΤΗΓΟΡΙΑ", `A${r}`, document.getElementById("f_category").value, `B${r}`);
+  r++;
+
+  ws.getCell(`D${r}`).value = "ΠΡΟΜΗΘΕΥΤΕΣ:";
+  ws.getCell(`D${r}`).font = { bold:true, color:{argb:NAVY} };
+  [["E",sup1],["F",sup2],["G",sup3],["H",sup4],["I",sup5]].forEach(([col,val])=>{
+    const cell = ws.getCell(`${col}${r}`);
+    cell.value = val;
+    cell.fill = fillSolid(GOLD);
+    cell.font = { bold:true, color:{argb:NAVY} };
+    cell.border = allBorders;
+    cell.alignment = center;
+  });
+  r += 2;
+
+  const headerRowNum = r;
+  const tableHeader = ["Α/Α","ΚΩΔΙΚΟΣ","ΠΕΡΙΓΡΑΦΗ","Μ.Μ.","ΠΟΣΟΤΗΤΑ",
+    sup1, sup2, sup3, sup4, sup5, "ΦΠΑ %","ΚΑΘΑΡΗ ΑΞΙΑ €","ΣΥΝΟΛΟ ΜΕ ΦΠΑ €","ΠΑΡΑΤΗΡΗΣΕΙΣ"];
+  const headerRow = ws.getRow(headerRowNum);
+  tableHeader.forEach((h,i)=>{
+    const cell = headerRow.getCell(i+1);
+    cell.value = h;
+    cell.fill = fillSolid(NAVY);
+    cell.font = { color:{argb:WHITE}, bold:true, size:10 };
+    cell.alignment = { ...center, wrapText:true };
+    cell.border = allBorders;
+  });
+  r++;
+
+  let itemIdx = 0;
+  getRows().forEach((tr)=>{
+    const code = tr.querySelector('[data-f="code"]').value;
+    const desc = tr.querySelector('[data-f="desc"]').value;
+    if(!code && !desc) return;
+    itemIdx++;
+    const unit = tr.querySelector('[data-f="unit"]').textContent;
+    const qty = tr.querySelector('[data-f="qty"]').value;
+    const p1raw = tr.querySelector('[data-f="p1"]').value;
+    const p2raw = tr.querySelector('[data-f="p2"]').value;
+    const p3raw = tr.querySelector('[data-f="p3"]').value;
+    const p4raw = tr.querySelector('[data-f="p4"]').value;
+    const p5raw = tr.querySelector('[data-f="p5"]').value;
+    const vatPct = tr.dataset.vat ? Math.round(parseFloat(tr.dataset.vat)*100)+"%" : "";
+    const net = tr.querySelector('[data-f="net"]').textContent;
+    const gross = tr.querySelector('[data-f="gross"]').textContent;
+    const notes = tr.querySelector('[data-f="notes"]').value;
+
+    const rowVals = [itemIdx, code, desc, unit, qty, p1raw, p2raw, p3raw, vatPct, net, gross, notes];
+    const row = ws.getRow(r);
+    rowVals.forEach((v,i)=>{
+      const cell = row.getCell(i+1);
+      cell.value = v;
+      cell.border = allBorders;
+      if(itemIdx % 2 === 0) cell.fill = fillSolid(GREY);
+      if(i===2 || i===11) cell.alignment = { horizontal:"left", vertical:"middle" };
+      else cell.alignment = center;
+    });
+
+    const prices = [parseNum(p1raw), parseNum(p2raw), parseNum(p3raw), parseNum(p4raw), parseNum(p5raw)].map(v=>isNaN(v)?null:v);
+    const valid = prices.filter(v=>v!==null);
+    if(valid.length>0){
+      const minP = Math.min(...valid);
+      prices.forEach((p, i)=>{
+        if(p!==null && p<=minP){
+          const cell = row.getCell(6+i);
+          cell.fill = fillSolid(SOFT_GREEN);
+          cell.font = { bold:true };
+        }
+      });
+    }
+    r++;
+  });
+
+  r++;
+  function totalLine(label, value, finalRow){
+    ws.getCell(`A${r}`).value = label;
+    ws.mergeCells(`A${r}:G${r}`);
+    ws.getCell(`H${r}`).value = value;
+    ws.mergeCells(`H${r}:I${r}`);
+    if(finalRow){
+      [`A${r}`, `H${r}`].forEach(ref=>{
+        ws.getCell(ref).fill = fillSolid(NAVY);
+        ws.getCell(ref).font = { color:{argb:WHITE}, bold:true, size:12 };
+      });
+    } else {
+      ws.getCell(`A${r}`).font = { bold:true, color:{argb:NAVY} };
+      ws.getCell(`H${r}`).fill = fillSolid(LIGHT_BLUE);
+      ws.getCell(`H${r}`).font = { bold:true };
+    }
+    ws.getCell(`A${r}`).alignment = { horizontal:"right" };
+    ws.getCell(`H${r}`).alignment = center;
+    r++;
+  }
+  totalLine("ΣΥΝΟΛΟ ΚΑΘΑΡΗΣ ΑΞΙΑΣ", document.getElementById("grandNet").textContent, false);
+  totalLine("ΣΥΝΟΛΟ ΦΠΑ", document.getElementById("grandVat").textContent, false);
+  totalLine("ΓΕΝΙΚΟ ΣΥΝΟΛΟ ΜΕ ΦΠΑ", document.getElementById("grandTotal").textContent, true);
+  r++;
+  totalLine("ΟΙΚΟΝΟΜΙΚΟΤΕΡΟΣ ΠΡΟΜΗΘΕΥΤΗΣ", document.getElementById("bestSupplier").textContent, true);
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:"application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const orderNo = document.getElementById("f_orderno").value || "paraggelia";
+  a.href = url;
+  a.download = `Paraggelia_${orderNo}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function printSmart(){
+  const rows = getRows();
+  let lastFilledIdx = -1;
+  rows.forEach((tr, i)=>{
+    const code = tr.querySelector('[data-f="code"]').value.trim();
+    const desc = tr.querySelector('[data-f="desc"]').value.trim();
+    if(code.length>0 || desc.length>0) lastFilledIdx = i;
+  });
+  const filledRows = lastFilledIdx + 1;
+
+  const keepUntil = Math.min(rows.length, lastFilledIdx + 1);
+  rows.forEach((tr, i)=>{
+    tr.classList.toggle("print-hide", i > keepUntil);
+  });
+
+  // Κρύβουμε στήλες προμηθευτών που δεν έχουν ΚΑΜΙΑ τιμή
+  const supHasValue = [false,false,false,false,false,false];
+  rows.slice(0, keepUntil+1).forEach(tr=>{
+    [1,2,3,4,5,6].forEach((n,i)=>{
+      const el = tr.querySelector(`[data-f="p${n}"]`);
+      if(el && el.value.trim()) supHasValue[i] = true;
+    });
+  });
+
+  let styleEl = document.getElementById("dynamicPageSize");
+  if(!styleEl){
+    styleEl = document.createElement("style");
+    styleEl.id = "dynamicPageSize";
+    document.head.appendChild(styleEl);
+  }
+
+  // Υπολογισμός θέσεων στηλών ανά nth-child (6=p1, 7=p2, 8=p3, 9=p4, 10=p5, 11=p6)
+  let hideSupCols = "";
+  supHasValue.forEach((has, i)=>{
+    if(!has){
+      const nth = i + 6; // p1=6th col, p2=7th, ...
+      hideSupCols += `thead th:nth-child(${nth}), tbody td:nth-child(${nth}), table.totals th:nth-child(${i+2}), table.totals td:nth-child(${i+2}){ display:none !important; }`;
+    }
+  });
+
+  const pageSize = filledRows <= 12 ? "A4 landscape" : "A3 landscape";
+  styleEl.textContent = `@page{ size:${pageSize}; margin:5mm; } ${hideSupCols}`;
+
+  setTimeout(()=> window.print(), 50);
+  // Επαναφορά μετά την εκτύπωση
+  setTimeout(()=>{
+    styleEl.textContent = `@page{ size:${pageSize}; margin:5mm; }`;
+  }, 2000);
+}
+
+async function generateOrderNumber(){
+  const { data, error } = await sb.rpc("get_next_order_number");
+  if(!error && data){
+    document.getElementById("f_orderno").value = data;
+  }
+}
+
+async function cancelOrder(){
+  if(!confirm("Να ακυρωθεί η τρέχουσα παραγγελία;\nΘα αποθηκευτεί αυτόματα στο Ιστορικό ώστε να μπορείς να την επαναφέρεις αν χρειαστεί.")) return;
+
+  // Αποθήκευση στο Ιστορικό πριν καθαριστεί
+  const data = collectData();
+  const hasAnyItem = (data.rows||[]).some(r => (r.code||"").trim() || (r.desc||"").trim());
+  if(hasAnyItem){
+    try{
+      await sb.from("order_history").insert({
+        order_number: data.orderno || null,
+        order_date: data.date || null,
+        department: data.dept || null,
+        data: data,
+        finalized: false,
+        saved_by: currentUser,
+        status: 'pending'
+      });
+    }catch(e){ console.error("cancelOrder backup failed:", e); }
+  }
+
+  orderLocked = false;
+  updateLockUI();
+  document.querySelectorAll("input[type=text],input[type=date]").forEach(el=>{
+    if(el.id !== "f_orderno") el.value = "";
+  });
+  document.getElementById("f_dept").value="";
+  document.getElementById("f_category").value="";
+  getRows().forEach(tr=>{
+    tr.querySelector('[data-f="desc"]').value = "";
+    tr.querySelector('[data-f="unit"]').textContent = "";
+    tr.querySelector('[data-f="vat"]').textContent = "—";
+    tr.dataset.vat = "";
+  });
+  [1,2,3,4,5].forEach(n=>{ document.getElementById("sup"+n).value="ΠΡΟΜΗΘΕΥΤΗΣ "+n; });
+  recalc();
+  scheduleSave();
+}
+
+function updateLockUI(){
+  const banner = document.getElementById("lockedBanner");
+  if(banner) banner.style.display = orderLocked ? "block" : "none";
+  document.querySelectorAll("#appRoot input, #appRoot select").forEach(el=>{
+    el.disabled = orderLocked;
+  });
+  const finalizeBtn = document.getElementById("finalizeBtn");
+  if(finalizeBtn) finalizeBtn.disabled = orderLocked;
+}
+
+async function finalizeOrder(){
+  const data = collectData();
+  const hasAnyItem = (data.rows||[]).some(r => (r.code||"").trim() || (r.desc||"").trim());
+  if(!hasAnyItem){ alert("Δεν υπάρχουν είδη στην παραγγελία."); return; }
+  if(!confirm("Οριστική καταχώρηση παραγγελίας " + (data.orderno||"") + ";")) return;
+
+  const histIdToSave = currentHistoryId;
+
+  try{
+    if(histIdToSave){
+      const { error } = await sb.from("order_history").update({
+        order_number: data.orderno || null,
+        order_date: data.date || null,
+        department: data.dept || null,
+        data: data, finalized: true,
+        saved_by: currentUser, saved_at: new Date().toISOString()
+      }).eq("id", histIdToSave);
+      if(error){ alert("Σφάλμα αποθήκευσης: " + error.message); return; }
+    } else {
+      // Πρώτα διαγράφουμε τυχόν υπάρχουσα εγγραφή με τον ίδιο αριθμό παραγγελίας
+      // ώστε να κρατάμε πάντα μόνο την τελευταία έκδοση
+      if(data.orderno){
+        try{ await sb.from("order_history").delete().eq("order_number", data.orderno); }catch(e){}
+      }
+      const { error } = await sb.from("order_history").insert({
+        order_number: data.orderno || null,
+        order_date: data.date || null,
+        department: data.dept || null,
+        data: data, finalized: true, saved_by: currentUser, status: 'pending'
+      });
+      if(error){ alert("Σφάλμα αποθήκευσης: " + error.message); return; }
+      // Διαγραφή από live_orders αφού καταχωρήθηκε οριστικά
+      if(currentOrderId){
+        try{ await sb.from("live_orders").delete().eq("id", currentOrderId); }catch(e){}
+      }
+    }
+  } catch(e){
+    alert("Σφάλμα αποθήκευσης: " + e.message);
+    return;
+  }
+
+  // Επιτυχής καταχώρηση
+  unsubscribeRealtime();
+  currentOrderId = null;
+  currentHistoryId = null;
+  document.getElementById("historyEditBanner").style.display = "none";
+  document.getElementById("appRoot").style.display = "none";
+  showPickerScreen();
+}
+
+async function unlockOrder(){
+  if(!confirm("Ξεκλείδωμα της παραγγελίας για επεξεργασία; Θα μπορεί να την αλλάξει ο καθένας μέχρι να την καταχωρήσεις ξανά οριστικά.")) return;
+  orderLocked = false;
+  updateLockUI();
+  await saveToSupabase();
+}
+
+async function archiveCurrentOrder(){
+  try{
+    const data = collectData();
+    const hasAnyItem = (data.rows||[]).some(r => (r.code||"").trim() || (r.desc||"").trim());
+    if(!hasAnyItem) return; // τίποτα ουσιαστικό να αρχειοθετηθεί
+    await sb.from("order_history").insert({
+      order_number: data.orderno || null,
+      order_date: data.date || null,
+      department: data.dept || null,
+      data: data,
+      saved_by: currentUser
+    });
+  } catch(e){ console.error("archiveCurrentOrder failed:", e); }
+}
+
+async function clearAll(){
+  if(!confirm("Να ολοκληρωθεί και να κλείσει αυτή η παραγγελία; Θα αποθηκευτεί στο Ιστορικό.")) return;
+  await archiveCurrentOrder();
+  if(currentOrderId){
+    try{ await sb.from("live_orders").delete().eq("id", currentOrderId); }catch(e){}
+  }
+  unsubscribeRealtime();
+  currentOrderId = null;
+  currentHistoryId = null;
+  document.getElementById("appRoot").style.display = "none";
+  showPickerScreen();
+}
+
+// ---------------- ΙΣΤΟΡΙΚΟ ΠΑΡΑΓΓΕΛΙΩΝ ----------------
+let historyCache = [];
+let histFilter = 'all';
+async function openHistory(){
+  document.getElementById("historyOverlay").style.display = "flex";
+  const { data, error } = await sb.from("order_history").select("*")
+    .order("order_date", {ascending:false})
+    .order("order_number", {ascending:false})
+    .limit(500);
+  historyCache = (!error && data) ? data : [];
+  renderHistoryList();
+}
+function closeHistory(){ document.getElementById("historyOverlay").style.display = "none"; }
+
+const STATUS_LABELS = {
+  'pending':  { label:'🔴 Προς Επεξεργασία', bg:'#fff0f0', color:'#c0392b' },
+  'approval': { label:'🟡 Προς Έγκριση',     bg:'#fffbe6', color:'#b7770d' },
+  'done':     { label:'🟢 Εκτελεσμένη',       bg:'#f0fff4', color:'#1a7f37' },
+};
+
+function setHistFilter(f){
+  histFilter = f;
+  ['all','pending','approval','done'].forEach(k=>{
+    const btn = document.getElementById('hf_'+k);
+    if(btn) btn.className = k===f ? 'btn-primary' : 'btn-secondary';
+    if(btn) btn.style.fontSize = '12px';
+    if(btn) btn.style.padding = '6px 12px';
+  });
+  renderHistoryList();
+}
+
+async function changeHistStatus(id, newStatus){
+  const { error } = await sb.from("order_history").update({ status: newStatus }).eq("id", id);
+  if(error){ alert("Σφάλμα: " + error.message); return; }
+  const h = historyCache.find(x=>x.id===id);
+  if(h) h.status = newStatus;
+  renderHistoryList();
+}
+
+function renderHistoryList(){
+  const q = (document.getElementById("hist_search").value || "").toLowerCase();
+  const listEl = document.getElementById("hist_list");
+
+  let matches = historyCache.filter(h=>{
+    const matchQ = !q || (h.order_number||"").toLowerCase().includes(q) ||
+      (h.department||"").toLowerCase().includes(q) || (h.order_date||"").includes(q);
+    const matchF = histFilter==='all' || (h.status||'pending')===histFilter;
+    return matchQ && matchF;
+  });
+
+  if(matches.length===0){
+    listEl.innerHTML = `<p style="padding:14px; font-size:12px; color:#999;">Δεν βρέθηκαν παραγγελίες.</p>`;
+    return;
+  }
+
+  matches.sort((a,b)=>{
+    const da = a.order_date||"", db = b.order_date||"";
+    if(db !== da) return db.localeCompare(da);
+    return (b.order_number||"").localeCompare(a.order_number||"");
+  });
+
+  let html = "";
+  let lastDate = null;
+  matches.forEach(h=>{
+    const dateLabel = h.order_date
+      ? new Date(h.order_date).toLocaleDateString("el-GR", {weekday:"long", day:"numeric", month:"long", year:"numeric"})
+      : "Χωρίς ημερομηνία";
+    const dateKey = h.order_date || "none";
+    if(dateKey !== lastDate){
+      lastDate = dateKey;
+      html += `<div style="background:var(--light-blue); padding:6px 12px; font-size:11px; font-weight:700; color:var(--navy); border-bottom:1px solid var(--border);">📅 ${dateLabel}</div>`;
+    }
+    const st = h.status || 'pending';
+    const stInfo = STATUS_LABELS[st] || STATUS_LABELS['pending'];
+    const itemCount = (h.data&&h.data.rows ? h.data.rows.filter(r=>r.code||r.desc).length : 0);
+    html += `<div style="display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid #eee; font-size:12px; position:relative; background:${stInfo.bg};"
+        onmouseenter="showHistPreview(event,'${h.id}')"
+        onmouseleave="hideHistPreview()">
+      <span style="font-weight:700; color:var(--navy); width:95px; flex-shrink:0;">${h.order_number||"—"}</span>
+      <span style="width:130px; flex-shrink:0;">${h.department||"—"}</span>
+      <span style="width:80px; color:#888; font-size:11px; flex-shrink:0;">${h.data&&h.data.category||""}</span>
+      <span style="flex:1; color:#999; font-size:11px;">${itemCount} είδη · ${h.saved_by||""}</span>
+      <select onchange="changeHistStatus('${h.id}', this.value)" onclick="event.stopPropagation()"
+        style="font-size:11px; padding:3px 6px; border:1px solid var(--border); border-radius:4px; background:#fff; color:${stInfo.color}; font-weight:600; flex-shrink:0;">
+        <option value="pending"  ${st==='pending' ?'selected':''}>🔴 Προς Επεξεργασία</option>
+        <option value="approval" ${st==='approval'?'selected':''}>🟡 Προς Έγκριση</option>
+        <option value="done"     ${st==='done'    ?'selected':''}>🟢 Εκτελεσμένη</option>
+      </select>
+      <button class="btn-secondary" style="padding:4px 8px; font-size:11px; flex-shrink:0;" onclick="loadHistoryOrder('${h.id}')">Άνοιγμα</button>
+      <button class="btn-danger" style="padding:4px 8px; font-size:11px; flex-shrink:0;" onclick="deleteHistoryOrder('${h.id}')">Διαγρ.</button>
+    </div>`;
+  });
+  listEl.innerHTML = html;
+}
+
+// ---------------- HOVER PREVIEW ----------------
+function showHistPreview(event, id){
+  const h = historyCache.find(x=>x.id===id);
+  if(!h) return;
+  const box = document.getElementById("histPreviewBox");
+  if(!box) return;
+  const rows = (h.data&&h.data.rows ? h.data.rows.filter(r=>r.code||r.desc) : []);
+  const sup1 = (h.data&&h.data.sup1||"ΠΡ.1").substring(0,10);
+  const sup2 = (h.data&&h.data.sup2||"ΠΡ.2").substring(0,10);
+  const sup3 = (h.data&&h.data.sup3||"ΠΡ.3").substring(0,10);
+  const tableRows = rows.map((r,i)=>`
+    <tr style="background:${i%2?"#f7f7f7":"#fff"}">
+      <td style="padding:3px 5px; color:#555; white-space:nowrap;">${r.code||""}</td>
+      <td style="padding:3px 5px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.desc||""}</td>
+      <td style="padding:3px 5px; text-align:center; color:#777;">${r.unit||""}</td>
+      <td style="padding:3px 5px; text-align:center; font-weight:600;">${r.qty||""}</td>
+      <td style="padding:3px 5px; text-align:center;">${r.p1||""}</td>
+      <td style="padding:3px 5px; text-align:center;">${r.p2||""}</td>
+      <td style="padding:3px 5px; text-align:center;">${r.p3||""}</td>
+    </tr>`).join("");
+  box.innerHTML = `
+    <div style="font-weight:700; color:var(--navy); font-size:12px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:6px;">
+      ${h.finalized?"✅":"📝"} ${h.order_number||"—"} &nbsp;·&nbsp; ${h.department||""} &nbsp;·&nbsp; ${h.order_date||""} &nbsp;·&nbsp; <span style="color:#888;">${h.data&&h.data.category||""}</span>
+    </div>
+    ${rows.length===0 ? '<p style="color:#999; text-align:center; padding:10px 0;">Χωρίς είδη</p>' : `
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:var(--navy); color:#fff;">
+          <th style="padding:4px 5px; text-align:left;">Κωδικός</th>
+          <th style="padding:4px 5px; text-align:left;">Περιγραφή</th>
+          <th style="padding:4px 5px;">Μ.Μ.</th>
+          <th style="padding:4px 5px;">Ποσ.</th>
+          <th style="padding:4px 5px;">${sup1}</th>
+          <th style="padding:4px 5px;">${sup2}</th>
+          <th style="padding:4px 5px;">${sup3}</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>`}`;
+  const margin = 14;
+  let x = event.clientX + margin, y = event.clientY + margin;
+  if(x + 555 > window.innerWidth) x = event.clientX - 555 - margin;
+  if(y + 440 > window.innerHeight) y = event.clientY - 440 - margin;
+  box.style.left = Math.max(4,x) + "px";
+  box.style.top = Math.max(4,y) + "px";
+  box.style.display = "block";
+}
+
+function hideHistPreview(){
+  const box = document.getElementById("histPreviewBox");
+  if(box) box.style.display = "none";
+}
+
+async function loadHistoryOrder(id){
+  const h = historyCache.find(x=>x.id===id);
+  if(!h) return;
+  if(!confirm(`Άνοιγμα παραγγελίας ${h.order_number||""} για επεξεργασία;\nΟι αλλαγές αποθηκεύονται αυτόματα μόνο σε αυτή την εγγραφή — δεν επηρεάζεται η κοινή παραγγελία.`)) return;
+  closeHistory();
+
+  // Σταματάμε το realtime sync ώστε αλλαγές άλλων να μην αντικαταστήσουν αυτό που επεξεργαζόμαστε
+  unsubscribeRealtime();
+
+  currentHistoryId = h.id;
+  const reopenData = { ...h.data, locked:false };
+  applyData(reopenData);
+  orderLocked = false;
+  updateLockUI();
+
+  // Εμφάνιση banner λειτουργίας επεξεργασίας ιστορικού
+  document.getElementById("historyEditBanner").style.display = "flex";
+}
+
+async function exitHistoryEdit(){
+  currentHistoryId = null;
+  document.getElementById("historyEditBanner").style.display = "none";
+  // Επαναφορά κοινής παραγγελίας και ξαναρχίζει realtime sync
+  await loadFromSupabase();
+  subscribeRealtime();
+}
+
+async function deleteHistoryOrder(id){
+  if(!confirm("Οριστική διαγραφή αυτής της παραγγελίας από το ιστορικό;")) return;
+  await sb.from("order_history").delete().eq("id", id);
+  historyCache = historyCache.filter(x=>x.id!==id);
+  renderHistoryList();
+}
+
+// ---------------- EXCEL-LIKE KEYBOARD BEHAVIOR ----------------
+function setupExcelLikeInputs(){
+  const fields = ["code","desc","qty","p1","p2","p3","p4","p5"];
+  getRows().forEach((tr, rowIdx)=>{
+    fields.forEach((f, colIdx)=>{
+      const el = tr.querySelector(`[data-f="${f}"]`);
+      if(!el) return;
+      el.addEventListener("focus", ()=> el.select());
+      el.addEventListener("keydown", (e)=>{
+        if((f === "code" || f === "desc") && ["ArrowDown","ArrowUp","Enter"].includes(e.key)){
+          const box = tr.querySelector(`.autocomplete-box[data-box="${f}"]`);
+          if(box && box.style.display === "block") return; // η λίστα προτάσεων έχει προτεραιότητα
+        }
+        const rows = getRows();
+        let targetRow = rowIdx, targetCol = colIdx;
+        if(e.key === "Enter" || e.key === "ArrowDown"){ targetRow++; }
+        else if(e.key === "ArrowUp"){ targetRow--; }
+        else if(e.key === "ArrowRight"){ targetCol++; }
+        else if(e.key === "ArrowLeft"){ targetCol--; }
+        else return;
+        // Για αριστερά/δεξιά, μόνο αν ο δρομέας είναι ήδη στην άκρη του κειμένου (σαν Excel/Sheets)
+        if((e.key === "ArrowRight" && el.selectionStart < el.value.length) ||
+           (e.key === "ArrowLeft" && el.selectionStart > 0)){
+          return;
+        }
+        e.preventDefault();
+        if(targetRow < 0 || targetRow >= rows.length) return;
+        if(targetCol < 0 || targetCol >= fields.length) return;
+        const targetEl = rows[targetRow].querySelector(`[data-f="${fields[targetCol]}"]`);
+        if(targetEl) targetEl.focus();
+      });
+    });
+  });
+}
+
+async function initApp(){
+  // ΒΗΜΑ 1 — Οι πιο κρίσιμοι "ακροατές" καταχωρούνται ΠΡΩΤΟΙ, χωρίς καμία εξάρτηση
+  // από οτιδήποτε άλλο, ώστε η πληκτρολόγηση/υπολογισμοί να δουλεύουν ΠΑΝΤΑ.
+  document.addEventListener("input", e=>{
+    try { recalc(); } catch(e){ console.error("recalc failed:", e); }
+    if(!e.target.closest(".autocomplete-box")){
+      try { scheduleSave(); } catch(e){ console.error("scheduleSave failed:", e); }
+    }
+    try { renderDebug(); } catch(e){}
+  });
+  document.addEventListener("change", ()=>{
+    try { recalc(); } catch(e){ console.error("recalc failed:", e); }
+  });
+  try { recalc(); } catch(e){ console.error("initial recalc failed:", e); }
+
+  // ΒΗΜΑ 2 — Βελτιώσεις UX (Excel-like πληκτρολόγιο) — δεν πρέπει να μπλοκάρουν τίποτα
+  try { setupExcelLikeInputs(); } catch(e){ console.error("setupExcelLikeInputs failed:", e); }
+
+  // ΒΗΜΑ 3 — Καθένα από τα παρακάτω τρέχει ξεχωριστά: αν κάποιο αποτύχει (π.χ. δίκτυο),
+  // δεν μπλοκάρει τα υπόλοιπα ούτε τη βασική λειτουργία της φόρμας.
+  try { await loadProducts(); } catch(e){ console.error("loadProducts failed:", e); }
+  try { getRows().forEach(attachAutocomplete); } catch(e){ console.error("attachAutocomplete failed:", e); }
+  try { await loadFromSupabase(); } catch(e){ console.error("loadFromSupabase failed:", e); }
+  try { updateLockUI(); } catch(e){}
+  try { updateUndoBtn(); } catch(e){}
+  try {
+    if(!document.getElementById("f_orderno").value){
+      await generateOrderNumber();
+      scheduleSave();
+    }
+  } catch(e){ console.error("generateOrderNumber failed:", e); }
+  try { subscribeRealtime(); } catch(e){ console.error("subscribeRealtime failed:", e); }
+
+  recalc();
+}
+
+// ---------------- ADMIN PANEL ----------------
+function openAdmin(){
+  if(!currentUserIsAdmin){ alert("Δεν έχεις δικαιώματα διαχείρισης."); return; }
+  document.getElementById("adminOverlay").style.display = "flex";
+  showAdminTab("products");
+  renderAdminProductList();
+  renderAdminStaffList();
+}
+function closeAdmin(){ document.getElementById("adminOverlay").style.display = "none"; }
+
+function showAdminTab(tab){
+  document.getElementById("adminProductsTab").style.display = tab==="products" ? "block" : "none";
+  document.getElementById("adminStaffTab").style.display = tab==="staff" ? "block" : "none";
+  document.getElementById("tabProductsBtn").style.background = tab==="products" ? "var(--light-blue)" : "";
+  document.getElementById("tabStaffBtn").style.background = tab==="staff" ? "var(--light-blue)" : "";
+}
+
+// ---------------- BULK CSV IMPORT (admin) ----------------
+function parseCSV(text){
+  // Απλός, ανθεκτικός CSV parser με υποστήριξη quoted πεδίων
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else field += c;
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field=""; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length>1 || (r.length===1 && r[0]!==""));
+}
+
+async function handleBulkUpload(){
+  const fileInput = document.getElementById("adm_csv_file");
+  const statusEl = document.getElementById("bulkUploadStatus");
+  const file = fileInput.files[0];
+  if(!file){ statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο CSV."; return; }
+
+  statusEl.textContent = "Διάβασμα αρχείου...";
+  const text = await file.text();
+  const rows = parseCSV(text);
+  if(rows.length < 2){ statusEl.textContent = "Το αρχείο φαίνεται άδειο."; return; }
+
+  const header = rows[0].map(h=>h.trim().toLowerCase());
+  const idxCode = header.indexOf("code");
+  const idxDesc = header.indexOf("description");
+  const idxUnit = header.indexOf("unit");
+  const idxVat = header.indexOf("vat");
+  if(idxCode===-1 || idxDesc===-1){
+    statusEl.textContent = "Λάθος μορφή: λείπουν οι στήλες code/description.";
+    return;
+  }
+
+  const records = rows.slice(1)
+    .filter(r => r[idxCode] && r[idxCode].trim())
+    .map(r => ({
+      code: r[idxCode].trim(),
+      description: (r[idxDesc]||"").trim(),
+      unit: idxUnit>=0 ? (r[idxUnit]||"").trim() : null,
+      vat: idxVat>=0 && r[idxVat] && r[idxVat].trim()!=="" ? parseFloat(r[idxVat]) : null
+    }));
+
+  statusEl.textContent = `Αποστολή ${records.length} προϊόντων...`;
+  const chunkSize = 500;
+  let done = 0;
+  for(let i=0;i<records.length;i+=chunkSize){
+    const chunk = records.slice(i, i+chunkSize);
+    const { error } = await sb.from("products").upsert(chunk);
+    if(error){
+      statusEl.textContent = `Σφάλμα στο batch ${i}: ${error.message}`;
+      return;
+    }
+    done += chunk.length;
+    statusEl.textContent = `Καταχωρήθηκαν ${done} / ${records.length}...`;
+  }
+  statusEl.textContent = `✅ Ολοκληρώθηκε! Καταχωρήθηκαν ${done} προϊόντα.`;
+  fileInput.value = "";
+  await loadProducts();
+  renderAdminProductList();
+}
+
+async function saveProduct(){
+  const code = document.getElementById("adm_code").value.trim();
+  const description = document.getElementById("adm_desc").value.trim();
+  const unit = document.getElementById("adm_unit").value.trim();
+  const vatRaw = document.getElementById("adm_vat").value;
+  if(!code || !description){ alert("Συμπλήρωσε τουλάχιστον Κωδικό και Περιγραφή."); return; }
+  const vat = vatRaw === "" ? null : parseFloat(vatRaw);
+  const { error } = await sb.from("products").upsert({ code, description, unit, vat });
+  if(error){ alert("Σφάλμα αποθήκευσης: " + error.message); return; }
+  document.getElementById("adm_code").value = "";
+  document.getElementById("adm_desc").value = "";
+  document.getElementById("adm_unit").value = "";
+  document.getElementById("adm_vat").value = "";
+  await loadProducts();
+  renderAdminProductList();
+}
+
+function editProductRow(code){
+  const p = findByCode(code);
+  if(!p) return;
+  document.getElementById("adm_code").value = p.code;
+  document.getElementById("adm_desc").value = p.description || "";
+  document.getElementById("adm_unit").value = p.unit || "";
+  document.getElementById("adm_vat").value = (p.vat===null||p.vat===undefined) ? "" : p.vat;
+}
+
+async function deleteProductRow(code){
+  if(!confirm("Διαγραφή προϊόντος " + code + ";")) return;
+  const { error } = await sb.from("products").delete().eq("code", code);
+  if(error){ alert("Σφάλμα διαγραφής: " + error.message); return; }
+  await loadProducts();
+  renderAdminProductList();
+}
+
+function renderAdminProductList(){
+  const q = (document.getElementById("adm_search").value || "").toLowerCase();
+  const listEl = document.getElementById("adm_product_list");
+  const matches = productCache.filter(p =>
+    !q || p.code.toLowerCase().includes(q) || (p.description||"").toLowerCase().includes(q)
+  ).slice(0, 100);
+  listEl.innerHTML = matches.map(p => `
+    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid #eee; font-size:12px;">
+      <span style="font-weight:700; color:var(--navy); width:90px;">${p.code}</span>
+      <span style="flex:1;">${p.description}</span>
+      <span style="width:50px; color:#777;">${p.unit||""}</span>
+      <span style="width:45px; color:#777;">${(p.vat!==null&&p.vat!==undefined)?Math.round(p.vat*100)+"%":"—"}</span>
+      <button class="btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="editProductRow('${p.code}')">Επεξ.</button>
+      <button class="btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteProductRow('${p.code}')">Διαγρ.</button>
+    </div>`).join("") || `<p style="padding:10px; font-size:12px; color:#999;">Δεν βρέθηκαν προϊόντα.</p>`;
+}
+
+async function addStaff(){
+  const name = document.getElementById("adm_staff_name").value.trim();
+  const pin = document.getElementById("adm_staff_pin").value.trim();
+  const is_admin = document.getElementById("adm_staff_admin").checked;
+  if(!name || !pin){ alert("Συμπλήρωσε Όνομα και PIN."); return; }
+  const { error } = await sb.from("staff").upsert({ name, pin, is_admin });
+  if(error){ alert("Σφάλμα: " + error.message); return; }
+  document.getElementById("adm_staff_name").value = "";
+  document.getElementById("adm_staff_pin").value = "";
+  document.getElementById("adm_staff_admin").checked = false;
+  renderAdminStaffList();
+}
+
+async function deleteStaffRow(name){
+  if(!confirm("Διαγραφή ατόμου " + name + ";")) return;
+  const { error } = await sb.from("staff").delete().eq("name", name);
+  if(error){ alert("Σφάλμα διαγραφής: " + error.message); return; }
+  renderAdminStaffList();
+}
+
+async function toggleStaffAdmin(name, makeAdmin){
+  const { error } = await sb.from("staff").update({ is_admin: makeAdmin }).eq("name", name);
+  if(error){ alert("Σφάλμα: " + error.message); return; }
+  renderAdminStaffList();
+}
+
+async function renderAdminStaffList(){
+  const { data, error } = await sb.from("staff").select("name,pin,is_admin").order("name");
+  const listEl = document.getElementById("adm_staff_list");
+  if(error || !data){ listEl.innerHTML = `<p style="padding:10px; font-size:12px; color:#999;">Σφάλμα φόρτωσης.</p>`; return; }
+  listEl.innerHTML = data.map(s => `
+    <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #eee; font-size:13px;">
+      <span style="flex:1; font-weight:600;">${s.name}</span>
+      <span style="color:#777; width:70px;">PIN: ${s.pin}</span>
+      <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
+        <input type="checkbox" ${s.is_admin?"checked":""} onchange="toggleStaffAdmin('${s.name}', this.checked)"> admin
+      </label>
+      <button class="btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteStaffRow('${s.name}')">Διαγρ.</button>
+    </div>`).join("");
+}
+
+checkExistingSession();
+</script>
+</body>
+</html>
